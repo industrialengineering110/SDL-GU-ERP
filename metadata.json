@@ -1,0 +1,7 @@
+{
+  "name": "Square Denims GU-A",
+  "description": "Square Denim Ltd. ",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
