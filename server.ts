@@ -4,7 +4,7 @@ import path from 'path';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { query, initDb } from './db';
+import { query, initDb } from './db.ts';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 
