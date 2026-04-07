@@ -4,11 +4,21 @@ import path from 'path';
 import cors from 'cors';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { query, initDb } from './db.ts';
+import { query, initDb } from './db';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
 
 dotenv.config();
+
+if (!process.env.DATABASE_URL) {
+  console.error('FATAL: DATABASE_URL is not set');
+  process.exit(1);
+}
+
+if (!process.env.JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET environment variable is not set');
+  process.exit(1);
+}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -330,7 +340,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on http://localhost:${PORT}`);
+    console.log(`Server running on port ${PORT}`);
   });
 }
 
