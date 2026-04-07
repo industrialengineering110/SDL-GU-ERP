@@ -5,18 +5,18 @@
 ### 1. Database (PostgreSQL)
 Ensure a PostgreSQL instance is running on your central server.
 ```sql
-CREATE DATABASE sdl_erp;
+CREATE DATABASE "Sdlguerp-db";
 ```
 
-### 2. Backend (FastAPI)
-Deploy on the server machine using Gunicorn for production-grade concurrency.
+### 2. Backend (Node.js/Express)
+Deploy on the server machine.
 ```bash
-pip install -r requirements.txt
-export DATABASE_URL="postgresql://user:pass@localhost/sdl_erp"
+npm install
+export DATABASE_URL="postgresql://user:pass@localhost/Sdlguerp-db"
 export JWT_SECRET="your-office-secret-key"
 
-# Run with 4 worker processes
-gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000
+# Run the server
+npm start
 ```
 
 ### 3. Frontend (React)

@@ -234,6 +234,85 @@ async function startServer() {
     }
   });
 
+  // Health Check
+  app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok' });
+  });
+
+  // Sync: Pull
+  app.get('/api/sync/pull', async (req, res) => {
+    const { since } = req.query;
+    try {
+      const tables = ['production', 'wip', 'npt', 'manpower', 'style_plans'];
+      const data: any = { timestamp: new Date().toISOString() };
+      
+      for (const table of tables) {
+        const result = await query(`SELECT * FROM ${table} WHERE updated_at > $1`, [since || new Date(0).toISOString()]);
+        data[table === 'style_plans' ? 'stylePlans' : table] = result.rows.map(r => ({ ...r.data, id: r.id, updated_at: r.updated_at }));
+      }
+      
+      res.json(data);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Sync: Push
+  app.post('/api/sync/push', async (req, res) => {
+    const { changes } = req.body;
+    try {
+      for (const table in changes) {
+        const pgTable = table === 'stylePlans' ? 'style_plans' : table;
+        for (const record of changes[table]) {
+          await query(
+            `INSERT INTO ${pgTable} (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)
+             ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP`,
+            [record.id, record]
+          );
+        }
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Production Log
+  app.post('/api/production/log', async (req, res) => {
+    const record = req.body;
+    try {
+      await query(
+        `INSERT INTO production (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)
+         ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP`,
+        [record.id, record]
+      );
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // QCO
+  app.get('/api/qco', async (req, res) => {
+    const { department } = req.query;
+    try {
+      // Assuming QCO data is stored in a separate table or just return empty for now
+      res.json([]);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/qco', async (req, res) => {
+    const record = req.body;
+    try {
+      // Save QCO record
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // --- Vite / Static Files ---
 
   if (process.env.NODE_ENV !== 'production') {

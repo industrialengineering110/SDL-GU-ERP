@@ -102,6 +102,51 @@ export const initDb = async () => {
       );
     `);
 
+    // Create Production Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS production (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create WIP Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS wip (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create NPT Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS npt (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create Manpower Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS manpower (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create Style Plans Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS style_plans (
+        id TEXT PRIMARY KEY,
+        data JSONB NOT NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('Database initialized successfully');
   } catch (err) {
     console.error('Error initializing database:', err);
