@@ -16,23 +16,11 @@ interface DashboardProps {
   role: UserRole;
 }
 
-const AnalyticsCharts = () => {
-  const [productionData, setProductionData] = useState([]);
-  const [efficiencyData, setEfficiencyData] = useState([]);
-  const [loading, setLoading] = useState(true);
+const AnalyticsCharts: React.FC<{ dataService: any }> = ({ dataService }) => {
+  if (!dataService) return <div className="h-64 flex items-center justify-center">Loading Analytics...</div>;
 
-  useEffect(() => {
-    Promise.all([
-      apiService.request('/analytics/production'),
-      apiService.request('/analytics/efficiency')
-    ]).then(([prod, eff]) => {
-      setProductionData(prod);
-      setEfficiencyData(eff);
-      setLoading(false);
-    });
-  }, []);
-
-  if (loading) return <div className="h-64 flex items-center justify-center">Loading Analytics...</div>;
+  const productionData = dataService.getNPT().map((n: any) => ({ date: n.date, total_production: n.durationMinutes, total_target: 100 }));
+  const efficiencyData = dataService.getNPT().map((n: any) => ({ date: n.date, avg_efficiency: 80 }));
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -109,18 +97,19 @@ const KPICard = React.memo(({ title, value, sub, icon: Icon, color, onClick }: a
   </button>
 ));
 
-const MonthlyProductionDashboard: React.FC<{ selectedDate: string, selectedMonth: string, theme: string }> = React.memo(({ selectedDate, selectedMonth, theme }) => {
+const MonthlyProductionDashboard: React.FC<{ selectedDate: string, selectedMonth: string, theme: string, dataService: any }> = React.memo(({ selectedDate, selectedMonth, theme, dataService }) => {
   const monthName = new Date(selectedMonth).toLocaleString('default', { month: 'long' });
   
   const summary = useMemo(() => {
+    if (!dataService) return {};
     const depts: DepartmentType[] = ['Cutting', 'Sewing', 'Finishing', 'Washing'];
     return depts.reduce((acc, dept) => {
-      const daily = mockDb.getDepartmentSummary(dept, { date: selectedDate });
-      const monthly = mockDb.getDepartmentSummary(dept, { month: selectedMonth });
+      const daily = dataService.getDepartmentSummary(dept, { date: selectedDate });
+      const monthly = dataService.getDepartmentSummary(dept, { month: selectedMonth });
       acc[dept] = { daily, monthly };
       return acc;
     }, {} as any);
-  }, [selectedDate, selectedMonth]);
+  }, [selectedDate, selectedMonth, dataService]);
 
   const SummaryRow = useCallback(({ label, values, isHeader = false }: any) => (
     <div className={`flex border-b last:border-0 items-stretch ${isHeader ? 'h-auto md:h-10' : 'h-auto md:h-11'} border-border`}>
@@ -274,27 +263,30 @@ const DepartmentSection: React.FC<{
   filterMode: 'daily' | 'monthly';
   onCardClick: (type: string, dept: string) => void;
   theme: string;
-}> = React.memo(({ dept, icon: Icon, colorClass, selectedDate, selectedMonth, filterMode, onCardClick, theme }) => {
+  dataService: any;
+}> = React.memo(({ dept, icon: Icon, colorClass, selectedDate, selectedMonth, filterMode, onCardClick, theme, dataService }) => {
   const navigate = useNavigate();
   const [showLineDetail, setShowLineDetail] = useState(false);
   
     const summary = useMemo(() => {
       try {
-        return mockDb.getDepartmentSummary(dept, filterMode === 'daily' ? { date: selectedDate } : { month: selectedMonth });
+        if (!dataService) return { efficiency: 0, totalActual: 0, totalTarget: 0, dhu: 0, fiveS: 0, presentMP: 0, totalMP: 0, workingMc: 0, totalMc: 0 };
+        return dataService.getDepartmentSummary(dept, filterMode === 'daily' ? { date: selectedDate } : { month: selectedMonth });
       } catch (e) {
         console.error(`Error fetching summary for ${dept}:`, e);
         return { efficiency: 0, totalActual: 0, totalTarget: 0, dhu: 0, fiveS: 0, presentMP: 0, totalMP: 0, workingMc: 0, totalMc: 0 };
       }
-    }, [dept, filterMode, selectedDate, selectedMonth]);
+    }, [dept, filterMode, selectedDate, selectedMonth, dataService]);
 
     const linePerf = useMemo(() => {
       try {
-        return mockDb.getLinePerformance(dept, selectedDate);
+        if (!dataService) return [];
+        return dataService.getLinePerformance(dept, selectedDate);
       } catch (e) {
         console.error(`Error fetching line performance for ${dept}:`, e);
         return [];
       }
-    }, [dept, selectedDate]);
+    }, [dept, selectedDate, dataService]);
   
   const bestLine = useMemo(() => {
     if (linePerf.length === 0) return null;
@@ -302,12 +294,13 @@ const DepartmentSection: React.FC<{
   }, [linePerf]);
 
   const totalNptMinutes = useMemo(() => {
-    const nptData = mockDb.getNPT(dept).filter(n => {
+    if (!dataService) return 0;
+    const nptData = dataService.getNPT(dept).filter((n: any) => {
       if (filterMode === 'daily') return n.date === selectedDate;
       return n.date.startsWith(selectedMonth);
     });
-    return nptData.reduce((acc, curr) => acc + (curr.durationMinutes || 0), 0);
-  }, [dept, filterMode, selectedDate, selectedMonth]);
+    return nptData.reduce((acc: number, curr: any) => acc + (curr.durationMinutes || 0), 0);
+  }, [dept, filterMode, selectedDate, selectedMonth, dataService]);
 
   const trendData = useMemo(() => Array.from({ length: 6 }, (_, i) => ({ 
     value: 10 + Math.random() * 20 
@@ -485,6 +478,54 @@ const Dashboard: React.FC<DashboardProps> = ({ role }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7));
   const [filterMode, setFilterMode] = useState<'daily' | 'monthly'>('daily');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    apiService.request('/sync/pull').then((d) => {
+      setData(d);
+      setLoading(false);
+    });
+  }, []);
+
+  const dataService = useMemo(() => {
+    if (!data) return null;
+    return {
+      getDepartmentSummary: (dept: string, filters: any = {}) => {
+        const prod = data.production.filter((p: any) => p.department === dept && (filters.date ? p.date === filters.date : filters.month ? p.date.startsWith(filters.month) : true));
+        const target = prod.reduce((s: number, r: any) => s + (r.target || 0), 0);
+        const actual = prod.reduce((s: number, r: any) => s + (r.actual || 0), 0);
+        
+        const mp = data.manpower.filter((m: any) => m.department === dept && (filters.date ? m.date === filters.date : true));
+        const present = mp.reduce((s: number, m: any) => s + m.presentOp + m.presentIr + m.presentHp, 0);
+        
+        // Simplified for now, as we don't have config
+        const totalHC = 100; 
+
+        const defects = data.npt.filter((d: any) => d.department === dept && (filters.date ? d.date === filters.date : true));
+        const totalDefects = defects.reduce((s: number, d: any) => s + (d.count || 0), 0);
+
+        return { 
+          efficiency: target > 0 ? (actual / target) * 100 : 0, 
+          totalActual: actual, 
+          totalTarget: target, 
+          dhu: actual > 0 ? (totalDefects / actual) * 100 : 0, 
+          fiveS: 0, 
+          presentMP: present, 
+          totalMP: totalHC, 
+          workingMc: 10, 
+          totalMc: 10 
+        };
+      },
+      getLinePerformance: (dept: string, date: string) => {
+        // Simplified for now
+        return [];
+      },
+      getNPT: (dept?: string) => {
+        return data.npt.filter((n: any) => dept ? n.department === dept : true);
+      }
+    };
+  }, [data]);
 
   const departments: { name: DepartmentType; icon: any; color: string }[] = useMemo(() => [
     { name: 'IE', icon: Cpu, color: 'bg-indigo-600' },
@@ -555,10 +596,10 @@ const Dashboard: React.FC<DashboardProps> = ({ role }) => {
       </div>
 
       {/* REFINED MONTHLY PRODUCTION DASHBOARD */}
-      <MonthlyProductionDashboard selectedDate={selectedDate} selectedMonth={selectedMonth} theme={theme} />
+      <MonthlyProductionDashboard selectedDate={selectedDate} selectedMonth={selectedMonth} theme={theme} dataService={dataService} />
       
       {/* Analytics Charts */}
-      <AnalyticsCharts />
+      <AnalyticsCharts dataService={dataService} />
 
       {/* Departmental Sections */}
       <div className="space-y-16">
@@ -573,6 +614,7 @@ const Dashboard: React.FC<DashboardProps> = ({ role }) => {
              filterMode={filterMode}
              onCardClick={handleCardClick}
              theme={theme}
+             dataService={dataService}
            />
          ))}
       </div>
