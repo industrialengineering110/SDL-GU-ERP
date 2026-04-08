@@ -118,6 +118,21 @@ async function startServer() {
     }
   });
 
+  // Auth: Get Current User
+  app.get('/api/auth/me', async (req, res) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) return res.status(401).json({ error: 'No token' });
+    const token = authHeader.split(' ')[1];
+    try {
+      const decoded: any = jwt.verify(token, JWT_SECRET);
+      const result = await query('SELECT id, name, email, mobile_number, employee_id, department, designation, section, area, lines, role, status FROM users WHERE id = $1', [decoded.id]);
+      if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
+      res.json(result.rows[0]);
+    } catch (err) {
+      res.status(401).json({ error: 'Invalid token' });
+    }
+  });
+
   // Admin: Get Users
   app.get('/api/admin/users', async (req, res) => {
     try {
@@ -278,21 +293,129 @@ async function startServer() {
     }
   });
 
-  // Health Check
-  app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok' });
+  // Sewing Costing
+  app.get('/api/sewing-costing', async (req, res) => {
+    try {
+      const result = await query('SELECT * FROM sewing_costing ORDER BY created_at DESC');
+      res.json(result.rows.map(r => ({ ...r.data, id: r.id, createdAt: r.created_at, updatedAt: r.updated_at })));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/sewing-costing', async (req, res) => {
+    const data = req.body;
+    const { id, styleNumber, buyer } = data;
+    try {
+      const result = await query(
+        `INSERT INTO sewing_costing (id, style_number, buyer, data, updated_at)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+         ON CONFLICT (id) DO UPDATE SET 
+         style_number = EXCLUDED.style_number, buyer = EXCLUDED.buyer, data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP
+         RETURNING *`,
+        [id, styleNumber, buyer, data]
+      );
+      res.json(result.rows[0]);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/sewing-costing/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+      await query('DELETE FROM sewing_costing WHERE id = $1', [id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Thread Consumption
+  app.get('/api/thread-consumption', async (req, res) => {
+    try {
+      const result = await query('SELECT * FROM thread_consumption ORDER BY created_at DESC');
+      res.json(result.rows.map(r => ({ ...r.data, id: r.id, createdAt: r.created_at, updatedAt: r.updated_at })));
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/thread-consumption', async (req, res) => {
+    const data = req.body;
+    const { id, styleNumber, buyer } = data;
+    try {
+      const result = await query(
+        `INSERT INTO thread_consumption (id, style_number, buyer, data, updated_at)
+         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+         ON CONFLICT (id) DO UPDATE SET 
+         style_number = EXCLUDED.style_number, buyer = EXCLUDED.buyer, data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP
+         RETURNING *`,
+        [id, styleNumber, buyer, data]
+      );
+      res.json(result.rows[0]);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/thread-consumption/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+      await query('DELETE FROM thread_consumption WHERE id = $1', [id]);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Analytics: Production Trend
+  app.get('/api/analytics/production', async (req, res) => {
+    try {
+      const result = await query(`
+        SELECT date, SUM(actual_pcs) as total_production, SUM(target_pcs) as total_target
+        FROM production_targets
+        GROUP BY date
+        ORDER BY date ASC
+        LIMIT 30
+      `);
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Analytics: Efficiency
+  app.get('/api/analytics/efficiency', async (req, res) => {
+    try {
+      const result = await query(`
+        SELECT date, AVG(efficiency) as avg_efficiency
+        FROM production_targets
+        GROUP BY date
+        ORDER BY date ASC
+        LIMIT 30
+      `);
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // Sync: Pull
   app.get('/api/sync/pull', async (req, res) => {
     const { since } = req.query;
     try {
-      const tables = ['production', 'wip', 'npt', 'manpower', 'style_plans'];
+      const tables = ['production', 'wip', 'npt', 'manpower', 'style_plans', 'sewing_costing', 'thread_consumption'];
       const data: any = { timestamp: new Date().toISOString() };
       
       for (const table of tables) {
         const result = await query(`SELECT * FROM ${table} WHERE updated_at > $1`, [since || new Date(0).toISOString()]);
-        data[table === 'style_plans' ? 'stylePlans' : table] = result.rows.map(r => ({ ...r.data, id: r.id, updated_at: r.updated_at }));
+        let key = table;
+        if (table === 'style_plans') key = 'stylePlans';
+        if (table === 'sewing_costing') key = 'sewingCosting';
+        if (table === 'thread_consumption') key = 'threadConsumption';
+        
+        data[key] = result.rows.map(r => ({ ...r.data, id: r.id, updated_at: r.updated_at }));
       }
       
       res.json(data);
@@ -306,13 +429,25 @@ async function startServer() {
     const { changes } = req.body;
     try {
       for (const table in changes) {
-        const pgTable = table === 'stylePlans' ? 'style_plans' : table;
+        let pgTable = table === 'stylePlans' ? 'style_plans' : table;
+        if (table === 'sewingCosting') pgTable = 'sewing_costing';
+        if (table === 'threadConsumption') pgTable = 'thread_consumption';
+
         for (const record of changes[table]) {
-          await query(
-            `INSERT INTO ${pgTable} (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)
-             ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP`,
-            [record.id, record]
-          );
+          if (pgTable === 'sewing_costing' || pgTable === 'thread_consumption') {
+            await query(
+              `INSERT INTO ${pgTable} (id, style_number, buyer, data, updated_at) 
+               VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+               ON CONFLICT (id) DO UPDATE SET style_number = $2, buyer = $3, data = $4, updated_at = CURRENT_TIMESTAMP`,
+              [record.id, record.styleNumber || '', record.buyer || '', record]
+            );
+          } else {
+            await query(
+              `INSERT INTO ${pgTable} (id, data, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)
+               ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP`,
+              [record.id, record]
+            );
+          }
         }
       }
       res.json({ success: true });

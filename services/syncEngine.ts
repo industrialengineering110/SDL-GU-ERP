@@ -21,7 +21,7 @@ class SyncEngine {
   }
 
   private async pushLocalChanges() {
-    const tables = ['production', 'wip', 'npt', 'manpower', 'stylePlans'];
+    const tables = ['production', 'wip', 'npt', 'manpower', 'stylePlans', 'sewingCosting', 'threadConsumption'];
     const payload: any = {};
 
     for (const table of tables) {
@@ -55,6 +55,8 @@ class SyncEngine {
         if (data.stylePlans) await db.stylePlans.bulkPut(data.stylePlans.map((r: any) => ({ ...r, _status: 'synced' })));
         if (data.manpower) await db.manpower.bulkPut(data.manpower.map((r: any) => ({ ...r, _status: 'synced' })));
         if (data.npt) await db.npt.bulkPut(data.npt.map((r: any) => ({ ...r, _status: 'synced' })));
+        if (data.sewingCosting) await db.sewingCosting.bulkPut(data.sewingCosting.map((r: any) => ({ ...r, _status: 'synced' })));
+        if (data.threadConsumption) await db.threadConsumption.bulkPut(data.threadConsumption.map((r: any) => ({ ...r, _status: 'synced' })));
         
         localStorage.setItem('last_sync_ts', data.timestamp);
       }

@@ -152,6 +152,30 @@ export const initDb = async () => {
       );
     `);
 
+    // Create Sewing Costing Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS sewing_costing (
+        id TEXT PRIMARY KEY,
+        style_number TEXT NOT NULL,
+        buyer TEXT NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Create Thread Consumption Table
+    await query(`
+      CREATE TABLE IF NOT EXISTS thread_consumption (
+        id TEXT PRIMARY KEY,
+        style_number TEXT NOT NULL,
+        buyer TEXT NOT NULL,
+        data JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
     console.log('Database initialized successfully');
   } catch (err) {
     console.error('Error initializing database:', err);

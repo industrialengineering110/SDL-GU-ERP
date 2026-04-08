@@ -91,9 +91,6 @@ const Login: React.FC<LoginProps> = ({ onLogin, onGoToSignup }) => {
               <button type="submit" className="w-full bg-primary text-primary-foreground font-black py-4 rounded-2xl shadow-xl hover:bg-primary/90 transition-all flex items-center justify-center gap-2 active:scale-95">
                  <LogIn size={20} /> Authenticate Session
               </button>
-              <button type="button" onClick={() => { console.log("DEBUG: All users in DB:", mockDb.getUsers()); alert("Users logged to console (F12 -> Console)"); }} className="w-full bg-muted text-muted-foreground font-bold py-3 rounded-2xl text-xs hover:bg-muted/80 transition-all">
-                 View All Users (Debug)
-              </button>
            </form>
         </div>
 

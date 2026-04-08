@@ -15,13 +15,14 @@ import {
   DollarSign
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { mockDb } from '../services/mockDb';
+import { apiService } from '../services/apiService';
 import { TrimsConsumptionEntry, TrimItem } from '../types';
 
 export const TrimsConsumption: React.FC = () => {
   const [view, setView] = useState<'ENTRY' | 'DATABASE'>('ENTRY');
   const [entries, setEntries] = useState<TrimsConsumptionEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<Partial<TrimsConsumptionEntry>>({
     style: '',
@@ -31,8 +32,19 @@ export const TrimsConsumption: React.FC = () => {
   });
 
   useEffect(() => {
-    setEntries(mockDb.getTrimsConsumptions());
-  }, []);
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const data = await apiService.getConsumption('trims');
+        setEntries(data);
+      } catch (error) {
+        console.error("Failed to load trims consumption:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, [view]);
 
   const addTrim = () => {
     const newTrim: TrimItem = {
@@ -70,7 +82,7 @@ export const TrimsConsumption: React.FC = () => {
     }, 0) || 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.style || !formData.buyer || !formData.trims?.length) {
       alert('Please fill in style, buyer and at least one trim item');
       return;
@@ -86,15 +98,24 @@ export const TrimsConsumption: React.FC = () => {
       updatedAt: new Date().toISOString()
     };
 
-    mockDb.saveTrimsConsumption(newEntry);
-    setEntries(mockDb.getTrimsConsumptions());
-    setView('DATABASE');
-    setFormData({
-      style: '',
-      buyer: '',
-      orderQty: 0,
-      trims: []
-    });
+    try {
+      await apiService.saveConsumption('trims', {
+        id: newEntry.id,
+        style_name: newEntry.style,
+        buyer_name: newEntry.buyer,
+        data: newEntry
+      });
+      alert('Trim costing saved successfully!');
+      setView('DATABASE');
+      setFormData({
+        style: '',
+        buyer: '',
+        orderQty: 0,
+        trims: []
+      });
+    } catch (error) {
+      alert('Failed to save trim costing');
+    }
   };
 
   const filteredEntries = entries.filter(e => 

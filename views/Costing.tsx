@@ -3,27 +3,29 @@ import {
   Banknote, ArrowLeft, Plus, Trash2, Save, Database, 
   FilePlus, ChevronRight, ChevronLeft, Image as ImageIcon, 
   Calculator, CheckCircle2, Search, Edit2, X, Upload, TrendingUp,
-  History as HistoryIcon, LayoutDashboard, Printer, Eye
+  History as HistoryIcon, LayoutDashboard, Printer, Eye, Download
 } from 'lucide-react';
 import { 
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area 
 } from 'recharts';
+import { exportToExcel } from '@/src/lib/export';
 import SewingCostingDashboard from '../components/SewingCostingDashboard';
 import { useNavigate } from 'react-router-dom';
-import { mockDb } from '../services/mockDb';
+import { apiService } from '../services/apiService';
 import { SewingCosting, Operation, DailyTarget, LayoutTemplate } from '../types';
 
 const Costing: React.FC<{ department?: string; subType?: string }> = ({ department, subType }) => {
   const navigate = useNavigate();
   
-  const [view, setView] = useState<'ENTRY' | 'DATABASE' | 'DASHBOARD'>('ENTRY');
+  const [view, setView] = useState<'ENTRY' | 'DATABASE'>('ENTRY');
   const [step, setStep] = useState(1);
-  const [config] = useState(mockDb.getSystemConfig());
+  const [config, setConfig] = useState<any>({ buyers: [], productCategories: [], lineMappings: [] });
   const [costingList, setCostingList] = useState<SewingCosting[]>([]);
   const [layoutTemplates, setLayoutTemplates] = useState<LayoutTemplate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
   
   // Modification Remark State
   const [showRemarkModal, setShowRemarkModal] = useState(false);
@@ -74,11 +76,28 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
   }, [formData]);
 
   useEffect(() => {
-    if (view === 'DATABASE') {
-      setCostingList(mockDb.getSewingCostingList());
-    }
-    setLayoutTemplates(mockDb.getLayoutTemplates(department));
-  }, [view, department]);
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [remoteConfig, remoteCostings] = await Promise.all([
+          apiService.getRemoteConfig(),
+          apiService.getSewingCosting()
+        ]);
+        setConfig(remoteConfig);
+        setCostingList(remoteCostings);
+      } catch (error) {
+        console.error("Failed to load costing data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    // In a real app, layout templates would also come from API
+    // For now, we'll keep them empty or fetch if endpoint exists
+  }, [department]);
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplateId(templateId);
@@ -105,7 +124,7 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.styleNumber || !formData.buyer) {
       alert("Please fill in Style Number and Buyer");
       return;
@@ -130,27 +149,36 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
       setPendingSaveData(newCosting);
       setShowRemarkModal(true);
     } else {
-      mockDb.saveSewingCosting(newCosting);
-      alert("Costing saved successfully!");
-      resetForm();
-      setView('DATABASE');
+      try {
+        await apiService.saveSewingCosting(newCosting);
+        alert("Costing saved successfully!");
+        resetForm();
+        const updatedList = await apiService.getSewingCosting();
+        setCostingList(updatedList);
+        setView('DATABASE');
+      } catch (error) {
+        alert("Failed to save costing");
+      }
     }
   };
 
   const handlePrint = (costing: SewingCosting) => {
-    // In a real app, this would open a print-friendly view or generate a PDF
     console.log("Printing costing:", costing);
     window.print();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm("Are you sure you want to delete this costing record?")) {
-      mockDb.deleteSewingCosting(id);
-      setCostingList(prev => prev.filter(c => c.id !== id));
+      try {
+        await apiService.deleteSewingCosting(id);
+        setCostingList(prev => prev.filter(c => c.id !== id));
+      } catch (error) {
+        alert("Failed to delete record");
+      }
     }
   };
 
-  const confirmSaveWithRemark = () => {
+  const confirmSaveWithRemark = async () => {
     if (!modificationRemark.trim()) {
       alert("Please provide a remark for this modification");
       return;
@@ -172,13 +200,19 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
           history: [historyEntry, ...(existingRecord.history || [])]
         };
 
-        mockDb.saveSewingCosting(updatedData);
-        alert("Costing updated successfully with history!");
-        setModificationRemark('');
-        setShowRemarkModal(false);
-        setPendingSaveData(null);
-        resetForm();
-        setView('DATABASE');
+        try {
+          await apiService.saveSewingCosting(updatedData);
+          alert("Costing updated successfully with history!");
+          setModificationRemark('');
+          setShowRemarkModal(false);
+          setPendingSaveData(null);
+          resetForm();
+          const updatedList = await apiService.getSewingCosting();
+          setCostingList(updatedList);
+          setView('DATABASE');
+        } catch (error) {
+          alert("Failed to update costing");
+        }
       }
     }
   };
@@ -363,12 +397,6 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
 
         <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
           <button 
-            onClick={() => setView('DASHBOARD')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${view === 'DASHBOARD' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-          >
-            <LayoutDashboard size={14} /> Dashboard
-          </button>
-          <button 
             onClick={() => setView('ENTRY')}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-black uppercase transition-all ${view === 'ENTRY' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
           >
@@ -380,10 +408,17 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
           >
             <Database size={14} /> Database
           </button>
+          {view === 'DATABASE' && (
+            <button 
+              onClick={() => exportToExcel(costingList, 'SewingCosting')}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-xs font-black uppercase hover:bg-emerald-700 transition-all"
+            >
+              <Download size={14} /> Export
+            </button>
+          )}
         </div>
       </div>
 
-      {view === 'DASHBOARD' && <SewingCostingDashboard />}
       {view === 'ENTRY' ? (
         <div className="space-y-8">
           {/* Stepper */}
@@ -1101,9 +1136,9 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
                   const totalMinutes = targets.length * 67 * 10 * 60;
                   const mktEfficiency = totalMinutes > 0 ? ((totalProductionInLearning * totalSMV) / totalMinutes) * 100 : 0;
 
-                  const achievement = mockDb.getStyleAchievement(costing.styleNumber);
-                  const workingHrs = achievement.totalHours || 10;
-                  const totalMinsAvailable = (achievement.avgManpower || 67) * workingHrs * 60;
+                  const achievement = { totalHours: 10, avgManpower: 67, totalOutput: 0 }; // Placeholder or fetch from API
+                  const workingHrs = achievement.totalHours;
+                  const totalMinsAvailable = (achievement.avgManpower) * workingHrs * 60;
                   const prodMins = achievement.totalOutput * totalSMV;
                   const actEff = totalMinsAvailable > 0 ? (prodMins / totalMinsAvailable) * 100 : 0;
                   
@@ -1180,10 +1215,14 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
                               <Edit2 size={16} />
                             </button>
                             <button 
-                              onClick={() => {
+                              onClick={async () => {
                                 if (confirm("Are you sure you want to delete this costing?")) {
-                                  mockDb.deleteSewingCosting(costing.id);
-                                  setCostingList(mockDb.getSewingCostingList());
+                                  try {
+                                    await apiService.deleteSewingCosting(costing.id);
+                                    setCostingList(prev => prev.filter(c => c.id !== costing.id));
+                                  } catch (e) {
+                                    alert("Failed to delete");
+                                  }
                                 }
                               }}
                               className="p-2.5 bg-white border border-slate-100 rounded-xl text-rose-500 hover:bg-rose-500 hover:text-white transition-all shadow-sm"

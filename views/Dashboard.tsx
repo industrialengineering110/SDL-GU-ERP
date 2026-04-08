@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, Users, Target, CheckCircle, Sparkles, Clock, 
@@ -6,15 +6,69 @@ import {
   Truck, Calendar, Filter, Timer, Cpu, BarChart3, ClipboardList, AlertTriangle, LineChart, Award, Minus, Plus, RotateCcw,
   Info, Layout, RefreshCcw, DollarSign
 } from 'lucide-react';
-import { AreaChart, Area, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { UserRole, DepartmentType } from '../types';
-import { mockDb } from '../services/mockDb';
+import { apiService } from '../services/apiService';
 import { useGlobal } from '../App';
 import Logo from '../components/Logo';
 
 interface DashboardProps {
   role: UserRole;
 }
+
+const AnalyticsCharts = () => {
+  const [productionData, setProductionData] = useState([]);
+  const [efficiencyData, setEfficiencyData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      apiService.request('/analytics/production'),
+      apiService.request('/analytics/efficiency')
+    ]).then(([prod, eff]) => {
+      setProductionData(prod);
+      setEfficiencyData(eff);
+      setLoading(false);
+    });
+  }, []);
+
+  if (loading) return <div className="h-64 flex items-center justify-center">Loading Analytics...</div>;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+        <h3 className="text-lg font-black mb-4">Production Trend (PCS)</h3>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={productionData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Legend />
+              <Area type="monotone" dataKey="total_production" name="Actual" stroke="#8884d8" fill="#8884d8" />
+              <Area type="monotone" dataKey="total_target" name="Target" stroke="#82ca9d" fill="#82ca9d" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+      <div className="bg-card p-6 rounded-3xl border border-border shadow-sm">
+        <h3 className="text-lg font-black mb-4">Efficiency Trend (%)</h3>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={efficiencyData}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="date" />
+              <YAxis />
+              <Tooltip />
+              <Bar dataKey="avg_efficiency" name="Avg Efficiency" fill="#ffc658" />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const MiniTrend = React.memo(({ data, color }: { data: any[], color: string }) => (
   <div className="h-12 w-24">
@@ -461,21 +515,21 @@ const Dashboard: React.FC<DashboardProps> = ({ role }) => {
   return (
     <div className="space-y-12 pb-20 max-w-[1750px] mx-auto">
       {/* Dynamic Header Filter */}
-      <div className="sticky top-0 z-30 backdrop-blur-md py-4 -mx-4 px-4 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b shadow-sm mb-4 bg-background/90 border-border">
-        <div>
-          <h1 className="text-2xl font-black tracking-tight flex items-center gap-2 text-foreground">
-            <Activity className="text-primary" size={24} /> SDL Master Console
+      <div className="sticky top-0 z-30 backdrop-blur-md py-4 -mx-4 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b shadow-sm mb-4 bg-background/90 border-border">
+        <div className="w-full sm:w-auto">
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight flex items-center gap-2 text-foreground">
+            <Activity className="text-primary" size={20} /> SDL Master Console
           </h1>
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Enterprise Visualization Matrix</p>
+          <p className="text-[9px] sm:text-xs font-bold text-muted-foreground uppercase tracking-widest">Enterprise Visualization Matrix</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
            <div className={`p-1 rounded-2xl border flex items-center shadow-sm transition-all ${filterMode === 'daily' ? 'border-primary ring-2 ring-primary/10' : 'border-border bg-card'}`}>
-              <div className="px-3 border-r flex items-center gap-2 border-border">
-                 <Calendar size={14} className="text-primary" />
+              <div className="px-2 sm:px-3 border-r flex items-center gap-2 border-border">
+                 <Calendar size={12} className="text-primary" />
                  <input 
                     type="date" 
-                    className="text-xs font-black outline-none border-none cursor-pointer bg-transparent text-foreground" 
+                    className="text-[10px] sm:text-xs font-black outline-none border-none cursor-pointer bg-transparent text-foreground" 
                     value={selectedDate} 
                     onChange={e => handleDateChange(e.target.value)}
                  />
@@ -483,25 +537,28 @@ const Dashboard: React.FC<DashboardProps> = ({ role }) => {
            </div>
 
            <div className={`p-1 rounded-2xl border flex items-center shadow-sm transition-all ${filterMode === 'monthly' ? 'border-indigo-400 ring-2 ring-indigo-500/10' : 'border-border bg-card'}`}>
-              <div className="px-3 flex items-center gap-2">
-                 <Filter size={14} className="text-indigo-600" />
+              <div className="px-2 sm:px-3 flex items-center gap-2">
+                 <Filter size={12} className="text-indigo-600" />
                  <input 
                     type="month" 
-                    className="text-xs font-black outline-none border-none cursor-pointer bg-transparent text-foreground" 
+                    className="text-[10px] sm:text-xs font-black outline-none border-none cursor-pointer bg-transparent text-foreground" 
                     value={selectedMonth} 
                     onChange={e => handleMonthChange(e.target.value)}
                  />
               </div>
            </div>
            
-           <div className="bg-primary text-primary-foreground px-5 py-2.5 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-primary/30">
-              <Clock size={16} /> Live: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+           <div className="bg-primary text-primary-foreground px-3 sm:px-5 py-2 sm:py-2.5 rounded-2xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest flex items-center gap-2 shadow-lg shadow-primary/30">
+              <Clock size={12} /> Live: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
            </div>
         </div>
       </div>
 
       {/* REFINED MONTHLY PRODUCTION DASHBOARD */}
       <MonthlyProductionDashboard selectedDate={selectedDate} selectedMonth={selectedMonth} theme={theme} />
+      
+      {/* Analytics Charts */}
+      <AnalyticsCharts />
 
       {/* Departmental Sections */}
       <div className="space-y-16">

@@ -46,6 +46,7 @@ import MachineAnalysis from './views/MachineAnalysis';
 import ManpowerAnalysis from './views/ManpowerAnalysis';
 import DepartmentHub from './views/DepartmentHub';
 import Costing from './views/Costing';
+import CostingDashboard from './views/CostingDashboard';
 import WashCosting from './views/WashCosting';
 import WashCostingHistory from './views/WashCostingHistory';
 import SewingOutputTransfer from './views/SewingOutputTransfer';
@@ -134,8 +135,16 @@ const App: React.FC = () => {
       // Critical: Load session
       const savedSession = localStorage.getItem('protrack_session');
       if (savedSession) {
-        const user = JSON.parse(savedSession);
-        setCurrentUser(user);
+        // Revalidate session
+        try {
+          const user = await apiService.getCurrentUser();
+          setCurrentUser(user);
+          localStorage.setItem('protrack_session', JSON.stringify(user));
+        } catch (e) {
+          console.warn("Session revalidation failed, clearing session:", e);
+          localStorage.clear();
+          setCurrentUser(null);
+        }
       }
       
       // Non-critical: Backend health and sync
@@ -266,6 +275,7 @@ const App: React.FC = () => {
                 <Route path="/factory/costing/fabric-consumption" element={<FabricConsumption />} />
                 <Route path="/factory/costing/sewing-thread-consumption" element={<SewingConsumption />} />
                 <Route path="/factory/costing/trims-consumption" element={<TrimsConsumption />} />
+                <Route path="/factory/costing/dashboard" element={<CostingDashboard />} />
                 <Route path="/factory/costing/sewing-costing" element={<DepartmentWrapper Component={Costing} currentUser={currentUser} />} />
                 <Route path="/factory/costing/wash-costing" element={<WashCosting />} />
                 <Route path="/factory/costing/wash-costing/history" element={<WashCostingHistory />} />

@@ -138,8 +138,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, user, onClose }) => {
           {isOpen && <p className="px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Operations</p>}
           
           <DeptSection dept="Costing" icon={Banknote} color="bg-blue-600" to="/costing/hub" isOpen={isOpen} isExpanded={openDepts['Costing']} toggleDept={toggleDept} theme={theme}>
+             <NavItem to="/factory/costing/dashboard" icon={LayoutDashboard} label="Costing Dashboard" isOpen={isOpen} location={location} theme={theme} />
              <NavItem to="/factory/costing/sewing-costing" icon={Shirt} label="Sewing Costing" isOpen={isOpen} location={location} theme={theme} />
-             <NavItem to="/factory/costing/sewing-costing?view=DASHBOARD" icon={LayoutDashboard} label="Costing Dashboard" isOpen={isOpen} location={location} theme={theme} />
              <div className="pl-4">
                 <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Consumption</p>
                 <NavItem to="/factory/costing/fabric-consumption" icon={Layers} label="Fabric Consumption" isOpen={isOpen} location={location} theme={theme} />

@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   AlertCircle
 } from 'lucide-react';
-import { mockDb } from '../services/mockDb';
+import { apiService } from '../services/apiService';
 import { motion, AnimatePresence } from 'motion/react';
 import { FabricConsumptionEntry } from '../types';
 
@@ -23,6 +23,7 @@ export const FabricConsumption: React.FC = () => {
   const [view, setView] = useState<'ENTRY' | 'DATABASE'>('ENTRY');
   const [entries, setEntries] = useState<FabricConsumptionEntry[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   
   const [formData, setFormData] = useState<Partial<FabricConsumptionEntry>>({
     style: '',
@@ -35,8 +36,19 @@ export const FabricConsumption: React.FC = () => {
   });
 
   useEffect(() => {
-    setEntries(mockDb.getFabricConsumptions());
-  }, []);
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const data = await apiService.getConsumption('fabric');
+        setEntries(data);
+      } catch (error) {
+        console.error("Failed to load fabric consumption:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, [view]);
 
   const calculateConsumption = () => {
     if (!formData.markerLength || !formData.garmentsPerMarker) return 0;
@@ -45,7 +57,7 @@ export const FabricConsumption: React.FC = () => {
     return parseFloat(withWastage.toFixed(3));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.style || !formData.buyer || !formData.markerLength) {
       alert('Please fill in all required fields');
       return;
@@ -64,18 +76,27 @@ export const FabricConsumption: React.FC = () => {
       updatedAt: new Date().toISOString()
     };
 
-    mockDb.saveFabricConsumption(newEntry);
-    setEntries(mockDb.getFabricConsumptions());
-    setView('DATABASE');
-    setFormData({
-      style: '',
-      buyer: '',
-      markerLength: 0,
-      markerWidth: 0,
-      garmentsPerMarker: 1,
-      wastagePercent: 3.5,
-      fabricType: ''
-    });
+    try {
+      await apiService.saveConsumption('fabric', {
+        id: newEntry.id,
+        style_name: newEntry.style,
+        buyer_name: newEntry.buyer,
+        data: newEntry
+      });
+      alert('Consumption saved successfully!');
+      setView('DATABASE');
+      setFormData({
+        style: '',
+        buyer: '',
+        markerLength: 0,
+        markerWidth: 0,
+        garmentsPerMarker: 1,
+        wastagePercent: 3.5,
+        fabricType: ''
+      });
+    } catch (error) {
+      alert('Failed to save consumption');
+    }
   };
 
   const filteredEntries = entries.filter(e => 

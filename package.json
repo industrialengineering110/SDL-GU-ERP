@@ -25,6 +25,8 @@
     "express": "^5.2.1",
     "framer-motion": "^12.35.0",
     "jsonwebtoken": "^9.0.3",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.460.0",
     "motion": "^12.35.0",
     "pg": "^8.20.0",
@@ -37,6 +39,7 @@
     "typescript": "^5.7.2",
     "uuid": "^11.0.3",
     "vite": "^6.0.5",
+    "vite-plugin-pwa": "^1.2.0",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

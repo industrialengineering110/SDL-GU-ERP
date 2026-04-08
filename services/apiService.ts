@@ -6,7 +6,7 @@ class ApiService {
     return localStorage.getItem('protrack_token');
   }
 
-  private async request(endpoint: string, options: RequestInit = {}) {
+  public async request(endpoint: string, options: RequestInit = {}) {
     const token = this.getToken();
     const headers: any = {
       'Content-Type': 'application/json',
@@ -33,6 +33,10 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ identifier, password }),
     });
+  }
+
+  async getCurrentUser() {
+    return this.request('/auth/me');
   }
 
   async register(userData: any) {
@@ -143,6 +147,38 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify(data),
     });
+  }
+
+  // Sewing Costing
+  async getSewingCosting() {
+    return this.request('/sewing-costing');
+  }
+
+  async saveSewingCosting(data: any) {
+    return this.request('/sewing-costing', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteSewingCosting(id: string) {
+    return this.request(`/sewing-costing/${id}`, { method: 'DELETE' });
+  }
+
+  // Thread Consumption
+  async getThreadConsumption() {
+    return this.request('/thread-consumption');
+  }
+
+  async saveThreadConsumption(data: any) {
+    return this.request('/thread-consumption', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteThreadConsumption(id: string) {
+    return this.request(`/thread-consumption/${id}`, { method: 'DELETE' });
   }
 }
 

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { 
   BarChart3, PieChart as PieChartIcon, Activity,
   Calendar, TrendingUp, Package, Scissors, DollarSign
@@ -7,14 +7,34 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
   PieChart, Pie, Cell, Legend
 } from 'recharts';
-import { mockDb } from '../services/mockDb';
+import { apiService } from '../services/apiService';
 
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 const SewingCostingDashboard: React.FC = () => {
-  const sewingCostings = mockDb.getSewingCostingList();
-  const threadConsumptions = mockDb.getThreadConsumptions();
+  const [sewingCostings, setSewingCostings] = useState<any[]>([]);
+  const [threadConsumptions, setThreadConsumptions] = useState<any[]>([]);
   const [viewMode, setViewMode] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [costings, consumptions] = await Promise.all([
+          apiService.getSewingCosting(),
+          apiService.getThreadConsumption()
+        ]);
+        setSewingCostings(costings);
+        setThreadConsumptions(consumptions);
+      } catch (error) {
+        console.error("Failed to load dashboard data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   const calculateEfficiency = (prod: number, smv: number) => {
     if (!prod || !smv) return 0;
@@ -89,6 +109,14 @@ const SewingCostingDashboard: React.FC = () => {
       threadExcess: Math.max(0, (c.bookedThreadQuantity || 0) - (c.totalThreadConsumption || 0))
     }));
   }, [threadConsumptions]);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

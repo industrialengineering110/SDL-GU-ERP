@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, Save, Calculator, Database, FilePlus, ChevronRight, ChevronLeft, CheckCircle, Shirt, ListChecks, FileText, Calendar, Edit, BarChart, PieChart, Search, Layout as LayoutIcon, Table as TableIcon, Printer as PrinterIcon, X as XIcon } from 'lucide-react';
 import { BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell, PieChart as RePieChart, Pie } from 'recharts';
 import { ThreadConsumption, ThreadConsumptionRow, SystemConfig } from '../types';
-import { mockDb } from '../services/mockDb';
+import { apiService } from '../services/apiService';
 import SearchableSelect from './SearchableSelect';
 
 const ThreadConsumptionTab: React.FC = () => {
@@ -14,11 +14,13 @@ const ThreadConsumptionTab: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const [systemConfig, setSystemConfig] = useState<SystemConfig>(mockDb.getSystemConfig());
+  const [systemConfig, setSystemConfig] = useState<SystemConfig>({ buyers: [], productCategories: [], threadRatios: [], threadCounts: [], coneSizes: [], wastageData: [], sdlWastage: [] } as any);
   const [isManagingCounts, setIsManagingCounts] = useState(false);
   const [isManagingSizes, setIsManagingSizes] = useState(false);
   const [newOptionValue, setNewOptionValue] = useState('');
   const [editingOptionIndex, setEditingOptionIndex] = useState<number | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [sewingCostings, setSewingCostings] = useState<any[]>([]);
   
   const [formData, setFormData] = useState<Partial<ThreadConsumption>>(() => {
     const saved = localStorage.getItem('thread_consumption_draft');
@@ -66,21 +68,14 @@ const ThreadConsumptionTab: React.FC = () => {
   };
 
   const styleOptions = useMemo(() => {
-    const allCostings = mockDb.getSewingCostingList();
     if (!formData.buyer) return [];
     
     // Filter costings by buyer and get unique style numbers
-    const filtered = allCostings.filter(c => c.buyer === formData.buyer);
+    const filtered = sewingCostings.filter(c => c.buyer === formData.buyer);
     const uniqueStyles = Array.from(new Set(filtered.map(c => c.styleNumber)));
     
-    // Fallback if no styles found in costings
-    if (uniqueStyles.length === 0) {
-      const allStyles = mockDb.getStyles();
-      return allStyles.filter(s => s.buyer === formData.buyer).map(s => ({ id: s.styleNumber, name: s.styleNumber }));
-    }
-    
     return uniqueStyles.map(s => ({ id: s, name: s }));
-  }, [formData.buyer]);
+  }, [formData.buyer, sewingCostings]);
 
   const buyerOptions = useMemo(() => 
     (systemConfig.buyers || []).map(b => ({ id: b, name: b })), 
@@ -98,10 +93,24 @@ const ThreadConsumptionTab: React.FC = () => {
   }, [systemConfig.threadRatios]);
 
   useEffect(() => {
-    if (view === 'DATABASE') {
-      setSavedRecords(mockDb.getThreadConsumptions());
-    }
-    setSystemConfig(mockDb.getSystemConfig());
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const [config, records, costings] = await Promise.all([
+          apiService.getRemoteConfig(),
+          apiService.getThreadConsumption(),
+          apiService.getSewingCosting()
+        ]);
+        setSystemConfig(config);
+        setSavedRecords(records);
+        setSewingCostings(costings);
+      } catch (error) {
+        console.error("Failed to load thread consumption data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
   }, [view]);
 
   // Update allowance based on sewing wastage when buyer changes
@@ -126,11 +135,11 @@ const ThreadConsumptionTab: React.FC = () => {
   // Auto-sync with Sewing Costing for Process Calculation
   useEffect(() => {
     if (calcType === 'PROCESS' && formData.buyer && formData.styleNumber) {
-      const costing = mockDb.getLatestCosting(formData.buyer, formData.styleNumber);
+      const costing = sewingCostings.find(c => c.buyer === formData.buyer && c.styleNumber === formData.styleNumber);
       if (costing && costing.operations && costing.operations.length > 0) {
         // Only auto-load if operations are empty or we explicitly want to sync
         if (formData.operations?.length === 0) {
-          const newOperations: ThreadConsumptionRow[] = costing.operations.map(op => {
+          const newOperations: ThreadConsumptionRow[] = costing.operations.map((op: any) => {
             const row: ThreadConsumptionRow = {
               id: Math.random().toString(36).substr(2, 9),
               operation: op.name,
@@ -176,7 +185,7 @@ const ThreadConsumptionTab: React.FC = () => {
         }
       }
     }
-  }, [calcType, formData.buyer, formData.styleNumber, systemConfig.threadRatios]);
+  }, [calcType, formData.buyer, formData.styleNumber, systemConfig.threadRatios, sewingCostings]);
 
   const addThreadSpec = () => {
     setFormData(prev => ({
@@ -185,7 +194,7 @@ const ThreadConsumptionTab: React.FC = () => {
     }));
   };
 
-  const handleAddOption = (type: 'COUNT' | 'SIZE') => {
+  const handleAddOption = async (type: 'COUNT' | 'SIZE') => {
     if (!newOptionValue.trim()) return;
     
     const currentOptions = type === 'COUNT' ? [...(systemConfig.threadCounts || [])] : [...(systemConfig.coneSizes || [])];
@@ -200,28 +209,40 @@ const ThreadConsumptionTab: React.FC = () => {
       currentOptions.push(newOptionValue.trim());
     }
     
+    const updatedConfig = { ...systemConfig };
     if (type === 'COUNT') {
-      mockDb.updateThreadCounts(currentOptions);
+      updatedConfig.threadCounts = currentOptions;
     } else {
-      mockDb.updateConeSizes(currentOptions);
+      updatedConfig.coneSizes = currentOptions;
     }
     
-    setSystemConfig(mockDb.getSystemConfig());
-    setNewOptionValue('');
-    setEditingOptionIndex(null);
+    try {
+      await apiService.saveRemoteConfig(updatedConfig);
+      setSystemConfig(updatedConfig);
+      setNewOptionValue('');
+      setEditingOptionIndex(null);
+    } catch (error) {
+      alert("Failed to update config");
+    }
   };
 
-  const handleDeleteOption = (type: 'COUNT' | 'SIZE', index: number) => {
+  const handleDeleteOption = async (type: 'COUNT' | 'SIZE', index: number) => {
     const currentOptions = type === 'COUNT' ? [...(systemConfig.threadCounts || [])] : [...(systemConfig.coneSizes || [])];
     currentOptions.splice(index, 1);
     
+    const updatedConfig = { ...systemConfig };
     if (type === 'COUNT') {
-      mockDb.updateThreadCounts(currentOptions);
+      updatedConfig.threadCounts = currentOptions;
     } else {
-      mockDb.updateConeSizes(currentOptions);
+      updatedConfig.coneSizes = currentOptions;
     }
     
-    setSystemConfig(mockDb.getSystemConfig());
+    try {
+      await apiService.saveRemoteConfig(updatedConfig);
+      setSystemConfig(updatedConfig);
+    } catch (error) {
+      alert("Failed to update config");
+    }
   };
 
   const removeThreadSpec = (index: number) => {
@@ -337,21 +358,22 @@ const ThreadConsumptionTab: React.FC = () => {
 
   const [showRationMatrix, setShowRationMatrix] = useState(false);
 
-  const loadFromLayout = () => {
+  const loadFromLayout = async () => {
     if (!formData.styleNumber) {
       setMessage("Please select a style number first.");
       setTimeout(() => setMessage(null), 3000);
       return;
     }
     
-    const layouts = mockDb.getLayoutMasters();
-    const layout = layouts.find(l => l.style === formData.styleNumber);
-    
-    if (!layout) {
-      setMessage("No layout found for this style. Please create a layout in IE Lab first.");
-      setTimeout(() => setMessage(null), 3000);
-      return;
-    }
+    try {
+      const layouts = await apiService.request('/ie/layout-master'); 
+      const layout = layouts.find((l: any) => l.style === formData.styleNumber);
+      
+      if (!layout) {
+        setMessage("No layout found for this style. Please create a layout in IE Lab first.");
+        setTimeout(() => setMessage(null), 3000);
+        return;
+      }
 
     // Mapping machine types to stitch types if possible
     const machineToStitch: Record<string, string> = {
@@ -411,6 +433,11 @@ const ThreadConsumptionTab: React.FC = () => {
     setFormData(prev => ({ ...prev, rows: newRows }));
     setMessage("Operations loaded from layout with matching ratios.");
     setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error("Failed to load layout:", error);
+      setMessage("Error connecting to server.");
+      setTimeout(() => setMessage(null), 3000);
+    }
   };
 
   const handlePrint = () => {
@@ -631,7 +658,7 @@ const ThreadConsumptionTab: React.FC = () => {
       .sort((a, b) => b.value - a.value);
   }, [formData.operations, calcType]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.styleNumber || !formData.buyer) {
       alert("Please fill in Style Number and Buyer");
       setStep(1);
@@ -648,25 +675,31 @@ const ThreadConsumptionTab: React.FC = () => {
       user: 'Admin'
     };
 
-    mockDb.saveThreadConsumption(newRecord);
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 3000);
-    
-    // Reset form
-    setFormData({
-      type: calcType,
-      styleNumber: '',
-      styleCode: '',
-      buyer: '',
-      productCategory: '',
-      date: new Date().toISOString().split('T')[0],
-      allowancePercent: 15,
-      orderQuantity: 0,
-      coneSizeMeters: 4000,
-      threadSpecs: [{ count: '', shade: '', coneSize: '' }],
-      operations: [],
-    });
-    setStep(1);
+    try {
+      await apiService.saveThreadConsumption(newRecord);
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 3000);
+      
+      // Reset form
+      setFormData({
+        type: calcType,
+        styleNumber: '',
+        styleCode: '',
+        buyer: '',
+        productCategory: '',
+        date: new Date().toISOString().split('T')[0],
+        allowancePercent: 15,
+        orderQuantity: 0,
+        coneSizeMeters: 4000,
+        threadSpecs: [{ count: '', shade: '', coneSize: '' }],
+        operations: [],
+      });
+      setStep(1);
+      const updatedRecords = await apiService.getThreadConsumption();
+      setSavedRecords(updatedRecords);
+    } catch (error) {
+      alert("Failed to save thread consumption");
+    }
   };
 
   const handleTypeSwitch = (type: 'SHORT' | 'PROCESS') => {
@@ -787,7 +820,7 @@ const ThreadConsumptionTab: React.FC = () => {
                         value={formData.styleNumber || ''}
                         options={styleOptions}
                         onChange={val => {
-                          const costing = mockDb.getSewingCostingList().find(c => c.styleNumber === val && c.buyer === formData.buyer);
+                          const costing = sewingCostings.find(c => c.styleNumber === val && c.buyer === formData.buyer);
                           setFormData({ 
                             ...formData, 
                             styleNumber: val,
@@ -1669,7 +1702,21 @@ const ThreadConsumptionTab: React.FC = () => {
                     <td className="p-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => handleEdit(record)} className="p-2 text-muted-foreground hover:text-primary transition-colors"><Edit size={14}/></button>
-                        <button onClick={() => { if(confirm("Delete this record?")) { mockDb.deleteThreadConsumption(record.id); setSavedRecords(mockDb.getThreadConsumptions()); } }} className="p-2 text-muted-foreground hover:text-rose-500 transition-colors"><Trash2 size={14} /></button>
+                        <button 
+                          onClick={async () => { 
+                            if(confirm("Delete this record?")) { 
+                              try {
+                                await apiService.deleteThreadConsumption(record.id); 
+                                setSavedRecords(prev => prev.filter(r => r.id !== record.id)); 
+                              } catch (e) {
+                                alert("Failed to delete");
+                              }
+                            } 
+                          }} 
+                          className="p-2 text-muted-foreground hover:text-rose-500 transition-colors"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
