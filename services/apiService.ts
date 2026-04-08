@@ -42,6 +42,20 @@ class ApiService {
     });
   }
 
+  async hasAdmin(): Promise<boolean> {
+    try {
+      const res = await this.request('/auth/has-admin');
+      return res.hasAdmin;
+    } catch { return false; }
+  }
+
+  async registerAdmin(userData: any) {
+    return this.request('/auth/register-admin', {
+      method: 'POST',
+      body: JSON.stringify(userData),
+    });
+  }
+
   async getUsers() {
     return this.request('/admin/users');
   }
@@ -70,7 +84,7 @@ class ApiService {
 
   async checkHealth(): Promise<boolean> {
     try {
-      const res = await fetch('/health');
+      const res = await fetch('/api/health');
       return res.ok;
     } catch { return false; }
   }

@@ -54,6 +54,40 @@ async function startServer() {
     }
   });
 
+  // Auth: Check if Admin Exists
+  app.get('/api/auth/has-admin', async (req, res) => {
+    try {
+      const result = await query("SELECT COUNT(*) FROM users WHERE role = 'ADMIN'");
+      const count = parseInt(result.rows[0].count);
+      res.json({ hasAdmin: count > 0 });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Auth: Register First Admin
+  app.post('/api/auth/register-admin', async (req, res) => {
+    const { id, name, employee_id, password, email, mobileNumber } = req.body;
+    try {
+      // Check if any admin already exists
+      const checkResult = await query("SELECT COUNT(*) FROM users WHERE role = 'ADMIN'");
+      if (parseInt(checkResult.rows[0].count) > 0) {
+        return res.status(400).json({ error: 'Admin already exists' });
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const result = await query(
+        `INSERT INTO users (id, name, email, mobile_number, employee_id, password, role, status, department, designation)
+         VALUES ($1, $2, $3, $4, $5, $6, 'ADMIN', 'APPROVED', 'IE', 'Manager') RETURNING *`,
+        [id, name, email, mobileNumber, employee_id, hashedPassword]
+      );
+      res.status(201).json(result.rows[0]);
+    } catch (err: any) {
+      console.error('Admin registration error:', err);
+      res.status(400).json({ error: err.message });
+    }
+  });
+
   // Auth: Login
   app.post('/api/auth/login', async (req, res) => {
     const { identifier, password } = req.body; // identifier can be email or employee_id

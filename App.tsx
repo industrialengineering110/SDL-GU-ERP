@@ -123,9 +123,8 @@ const App: React.FC = () => {
   const initializeApp = useCallback(async () => {
     console.log("DEBUG: App Initialization Config:", ENV);
     try {
-      // Check for admin
-      const users = mockDb.getUsers();
-      const hasAdmin = users.some(u => u.role === 'ADMIN');
+      // Check for admin via Backend API
+      const hasAdmin = await apiService.hasAdmin();
       if (!hasAdmin) {
         setShowAdminRegistration(true);
         setIsReady(true);
