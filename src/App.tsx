@@ -1,251 +1,305 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { AppUser as User, UserRole } from './types';
+import { ENV } from './config/env';
+import { apiService } from './services/apiService';
+import { syncEngine } from './services/syncEngine';
+import Sidebar from './components/Sidebar';
+import Header from './components/Header';
+import MobileNav from './components/MobileNav';
+import Login from './views/Login';
+import Registration from './views/Registration';
+import AdminRegistration from './views/AdminRegistration';
+import Dashboard from './views/Dashboard';
+import SectionReport from './views/SectionReport';
+import DefectInput from './views/DefectInput';
+import AdminManagement from './views/AdminManagement';
+import AdminUserManagement from './views/AdminUserManagement';
+import FactoryAnalytics from './views/FactoryAnalytics';
+import EfficiencyReport from './views/EfficiencyReport';
+import SewingConsumption from './views/SewingConsumption';
+import FabricConsumption from './views/FabricConsumption';
+import TrimsConsumption from './views/TrimsConsumption';
+import WIPEntry from './views/WIPEntry';
+import OTAnalysis from './views/OTAnalysis';
+import ManpowerSheet from './views/ManpowerSheet';
+import MachineSheet from './views/MachineSheet';
+import NPTInput from './views/NPTInput';
+import Audit5S from './views/Audit5S';
+import IEActivity from './views/IEActivity';
+import ProductionStudy from './views/ProductionStudy';
+import QCOHub from './views/QCOHub';
+import DailyLineTargetReport from './views/DailyLineTargetReport';
+import SectionReportManpower from './views/SectionReportManpower';
+import SectionReportQuality from './views/SectionReportQuality';
+import SectionReportWIP from './views/SectionReportWIP';
+import SkillMatrix from './views/SkillMatrix';
+import LayoutMaster from './views/LayoutMaster';
+import LayoutBank from './views/LayoutBank';
+import ProcessRegistry from './views/ProcessRegistry';
+import TargetSheet from './views/TargetSheet';
+import ProductionPlanningView from './views/ProductionPlanning';
+import MachineAnalysis from './views/MachineAnalysis';
+import ManpowerAnalysis from './views/ManpowerAnalysis';
+import DepartmentHub from './views/DepartmentHub';
+import Costing from './views/Costing';
+import CostingDashboard from './views/CostingDashboard';
+import WashCosting from './views/WashCosting';
+import WashCostingHistory from './views/WashCostingHistory';
+import SewingOutputTransfer from './views/SewingOutputTransfer';
+import WashingInput from './views/WashingInput';
+import Washing from './views/Washing';
+import WashingProcessView from './views/WashingProcessView';
+import WashingProductionReport from './views/WashingProductionReport';
+import StoreInventory from './views/StoreInventory';
+import NoticeBoard from './views/NoticeBoard';
+import SizeSetPilot from './views/SizeSetPilot';
 import { 
-  LayoutDashboard, 
-  Database, 
-  ClipboardList, 
-  TrendingUp, 
-  Activity, 
-  Users, 
-  BarChart3, 
-  Layers, 
-  Clock, 
-  CheckCircle2,
-  Settings,
-  LogOut,
-  Menu,
-  X,
-  Bell,
-  Search,
-  User,
-  Calculator,
-  Droplets,
-  Scissors,
-  ShieldCheck
-} from 'lucide-react';
-import { Toaster } from 'sonner';
-import { getAuthService } from '../services/auth';
-import Login from '../views/Login';
-import Registration from '../views/Registration';
-
-// Views
-import Dashboard from '../views/Dashboard';
-import Costing from '../views/Costing';
-import WashCosting from '../views/WashCosting';
-import WashCostingHistory from '../views/WashCostingHistory';
-import FabricConsumption from '../views/FabricConsumption';
-import TrimsConsumption from '../views/TrimsConsumption';
-import { PlanningHub } from '../views/PlanningHub';
-
-// Types
-import { AppUser, UserRole } from '../types';
+  LiveProduction, 
+  CoordinationWall, 
+  RevisionHistory, 
+  PlanningDashboard, 
+  OrderPool, 
+  PreProductionTracker, 
+  ReadyForPlan, 
+  LineLoading,
+  PlanningHub
+} from './views/PlanningHub';
 
 interface GlobalContextType {
+  currentUser: User | null;
+  setCurrentUser: (user: User | null) => void;
+  isLive: boolean;
+  logout: () => void;
   theme: 'light' | 'dark';
-  setTheme: (theme: 'light' | 'dark') => void;
-  currentUser: AppUser | null;
-  setCurrentUser: (user: AppUser | null) => void;
+  toggleTheme: () => void;
 }
 
-const GlobalContext = createContext<GlobalContextType | undefined>(undefined);
+const GlobalContext = createContext<GlobalContextType | null>(null);
+export const useGlobal = () => useContext(GlobalContext)!;
 
-export const useGlobal = () => {
-  const context = useContext(GlobalContext);
-  if (!context) throw new Error('useGlobal must be used within a GlobalProvider');
-  return context;
-};
+const App: React.FC = () => {
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isReady, setIsReady] = useState(false);
+  const [isLive, setIsLive] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth > 768);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const [showAdminRegistration, setShowAdminRegistration] = useState(false);
+  const [authView, setAuthView] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    const saved = localStorage.getItem('protrack_theme');
+    return (saved as 'light' | 'dark') || 'light';
+  });
 
-const Sidebar = ({ isOpen, toggle, onLogout }: { isOpen: boolean; toggle: () => void; onLogout: () => void }) => {
-  const location = useLocation();
-
-  const menuItems = [
-    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-    { icon: TrendingUp, label: 'Planning Hub', path: '/planning' },
-    { icon: Calculator, label: 'Sewing Costing', path: '/costing' },
-    { icon: Droplets, label: 'Wash Costing', path: '/wash-costing' },
-    { icon: Scissors, label: 'Fabric Consumption', path: '/fabric-consumption' },
-    { icon: Database, label: 'Trims Consumption', path: '/trims-consumption' },
-  ];
-
-  return (
-    <>
-      {/* Mobile Overlay */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden"
-          onClick={toggle}
-        />
-      )}
-
-      <aside className={`fixed top-0 left-0 h-full bg-white border-r border-slate-200 z-50 transition-all duration-300 ${isOpen ? 'w-64' : 'w-0 lg:w-20'} overflow-hidden flex flex-col`}>
-        <div className="p-6 flex items-center gap-4 border-b border-slate-100">
-          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shrink-0">
-            <TrendingUp size={20} />
-          </div>
-          <span className={`font-black uppercase italic tracking-tighter text-slate-900 transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
-            ProTrack ERP
-          </span>
-        </div>
-
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto no-scrollbar">
-          {menuItems.map((item) => {
-            const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
-            return (
-              <a
-                key={item.path}
-                href={`#${item.path}`}
-                className={`flex items-center gap-4 p-3 rounded-xl transition-all ${
-                  isActive 
-                    ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' 
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <item.icon size={20} className="shrink-0" />
-                <span className={`text-xs font-black uppercase tracking-widest transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0 lg:hidden group-hover:opacity-100'}`}>
-                  {item.label}
-                </span>
-              </a>
-            );
-          })}
-        </nav>
-
-        <div className="p-4 border-t border-slate-100">
-          <button 
-            onClick={onLogout}
-            className="flex items-center gap-4 p-3 w-full rounded-xl text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-all"
-          >
-            <LogOut size={20} className="shrink-0" />
-            <span className={`text-xs font-black uppercase tracking-widest transition-opacity ${isOpen ? 'opacity-100' : 'opacity-0'}`}>
-              Logout
-            </span>
-          </button>
-        </div>
-      </aside>
-    </>
-  );
-};
-
-const Header = ({ toggleSidebar, user }: { toggleSidebar: () => void; user: AppUser | null }) => {
-  return (
-    <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-200 h-16 flex items-center justify-between px-4 md:px-8">
-      <div className="flex items-center gap-4">
-        <button 
-          onClick={toggleSidebar}
-          className="p-2 hover:bg-slate-100 rounded-lg lg:hidden"
-        >
-          <Menu size={20} />
-        </button>
-        <div className="hidden md:flex items-center gap-2 bg-slate-100 px-4 py-2 rounded-xl border border-slate-200 w-64 lg:w-96">
-          <Search size={16} className="text-slate-400" />
-          <input 
-            type="text" 
-            placeholder="Search anything..." 
-            className="bg-transparent border-none outline-none text-xs font-bold w-full"
-          />
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <button className="p-2 text-slate-400 hover:text-slate-900 relative">
-          <Bell size={20} />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-rose-500 rounded-full border-2 border-white"></span>
-        </button>
-        <div className="w-px h-6 bg-slate-200 mx-2"></div>
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <p className="text-xs font-black text-slate-900 uppercase tracking-tight">{user?.name || 'User'}</p>
-            <p className="text-[10px] font-bold text-slate-400 uppercase">{user?.designation || 'Member'}</p>
-          </div>
-          <div className="w-10 h-10 bg-slate-100 rounded-xl border border-slate-200 flex items-center justify-center text-slate-400">
-            <User size={20} />
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-};
-
-export default function App() {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-
-  useEffect(() => {
-    const authService = getAuthService();
-    const user = authService.getCurrentUser();
-    if (user) {
-      setCurrentUser(user as unknown as AppUser);
-    }
-    setIsLoading(false);
-  }, []);
-
-  const handleLogin = (user: AppUser) => {
-    setCurrentUser(user);
+  const toggleTheme = () => {
+    const newTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(newTheme);
+    localStorage.setItem('protrack_theme', newTheme);
   };
 
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 768) {
+        setIsSidebarOpen(false);
+      } else {
+        setIsSidebarOpen(true);
+        setIsMobileDrawerOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const initializeApp = useCallback(async () => {
+    console.log("DEBUG: App Initialization Config:", ENV);
+    try {
+      const hasAdmin = await apiService.hasAdmin();
+      if (!hasAdmin) {
+        setShowAdminRegistration(true);
+        setIsReady(true);
+        return;
+      }
+
+      const savedSession = localStorage.getItem('protrack_session');
+      if (savedSession) {
+        try {
+          const user = await apiService.getCurrentUser();
+          setCurrentUser(user);
+          localStorage.setItem('protrack_session', JSON.stringify(user));
+        } catch (e) {
+          console.warn("Session revalidation failed, clearing session:", e);
+          localStorage.clear();
+          setCurrentUser(null);
+        }
+      }
+      
+      apiService.checkHealth().then(backendAlive => {
+        setIsLive(backendAlive);
+        if (backendAlive) syncEngine.startSync();
+      });
+    } catch (e) {
+      console.warn("Init error:", e);
+      setIsLive(false);
+    } finally {
+      setIsReady(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    initializeApp();
+    const interval = setInterval(() => syncEngine.startSync(), 30000);
+    return () => clearInterval(interval);
+  }, [initializeApp]);
+
+  const handleLoginSuccess = useCallback((user: any) => {
+    localStorage.setItem('protrack_session', JSON.stringify(user));
+    if (user.access_token) {
+      localStorage.setItem('protrack_token', user.access_token);
+      localStorage.setItem('protrack_session', JSON.stringify(user.user));
+      setCurrentUser(user.user);
+    } else {
+      setCurrentUser(user);
+    }
+  }, []);
+
   const handleLogout = () => {
-    const authService = getAuthService();
-    authService.logout();
+    localStorage.clear();
     setCurrentUser(null);
   };
 
-  if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-    </div>;
+  if (!isReady) {
+    return (
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-background gap-4">
+        <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+        <p className="text-foreground text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">Initializing Data Engine...</p>
+      </div>
+    );
+  }
+
+  if (showAdminRegistration) {
+    return (
+      <div className="bg-background text-foreground min-h-screen">
+        <AdminRegistration onSuccess={() => { setShowAdminRegistration(false); window.location.reload(); }} />
+      </div>
+    );
   }
 
   if (!currentUser) {
     return (
-      <>
-        {isRegistering ? (
-          <Registration 
-            onGoToLogin={() => setIsRegistering(false)} 
-            onSuccess={() => {
-              setIsRegistering(false);
-            }} 
-          />
+      <div className="bg-background text-foreground min-h-screen">
+        {authView === 'LOGIN' ? (
+          <Login onLogin={handleLoginSuccess} onGoToSignup={() => setAuthView('SIGNUP')} />
         ) : (
-          <Login onLogin={handleLogin} onGoToSignup={() => setIsRegistering(true)} />
+          <Registration onSuccess={() => setAuthView('LOGIN')} onGoToLogin={() => setAuthView('LOGIN')} />
         )}
-        <Toaster position="top-right" richColors />
-      </>
+      </div>
     );
   }
 
   return (
-    <GlobalContext.Provider value={{ theme, setTheme, currentUser, setCurrentUser }}>
-      <Router>
-        <div className={`min-h-screen ${theme === 'dark' ? 'bg-slate-950 text-white' : 'bg-slate-50 text-slate-900'}`}>
-          <Sidebar isOpen={isSidebarOpen} toggle={() => setIsSidebarOpen(!isSidebarOpen)} onLogout={handleLogout} />
+    <GlobalContext.Provider value={{ currentUser, setCurrentUser, isLive, logout: handleLogout, theme, toggleTheme }}>
+      <HashRouter>
+        <div className="flex h-screen overflow-hidden font-inter relative bg-background text-foreground transition-colors duration-300">
+          <Sidebar 
+            isOpen={window.innerWidth > 768 ? isSidebarOpen : isMobileDrawerOpen} 
+            user={currentUser} 
+            onClose={() => window.innerWidth > 768 ? setIsSidebarOpen(false) : setIsMobileDrawerOpen(false)} 
+          />
           
-          <div className={`transition-all duration-300 ${isSidebarOpen ? 'lg:pl-64' : 'lg:pl-20'}`}>
-            <Header toggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} user={currentUser} />
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+            <Header 
+              user={currentUser} 
+              onUserChange={setCurrentUser} 
+              toggleSidebar={() => window.innerWidth > 768 ? setIsSidebarOpen(!isSidebarOpen) : setIsMobileDrawerOpen(!isMobileDrawerOpen)} 
+              isSidebarOpen={window.innerWidth > 768 ? isSidebarOpen : isMobileDrawerOpen} 
+            />
             
-            <main className="p-4 md:p-8">
-              <Routes>
-                <Route path="/" element={<Dashboard role={currentUser?.role as UserRole || UserRole.ADMIN} />} />
-                <Route path="/planning" element={<PlanningHub />} />
-                <Route path="/planning/:tabId" element={<PlanningHub />} />
-                <Route path="/costing" element={<Costing />} />
-                <Route path="/wash-costing" element={<WashCosting />} />
-                <Route path="/wash-costing/history" element={<WashCostingHistory />} />
-                <Route path="/fabric-consumption" element={<FabricConsumption />} />
-                <Route path="/trims-consumption" element={<TrimsConsumption />} />
+            <MobileNav />
+            
+            <main className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar overflow-x-hidden">
+              <div className="min-w-0 w-full">
+                <Routes>
+                <Route path="/" element={<Dashboard role={currentUser.role as UserRole} />} />
+                <Route path="/:dept/hub" element={<DepartmentHub />} />
+                <Route path="/sewing/output-transfer" element={<SewingOutputTransfer currentUser={currentUser} />} />
+                <Route path="/washing/input" element={<WashingInput currentUser={currentUser} />} />
+                <Route path="/washing/production-report" element={<WashingProductionReport />} />
+                <Route path="/washing/wet-process" element={<WashingProcessView />} />
+                <Route path="/washing/dry-process" element={<WashingProcessView />} />
+                <Route path="/washing/:process" element={<Washing />} />
+                <Route path="/store/fabric" element={<StoreInventory />} />
+                <Route path="/store/accessories" element={<StoreInventory />} />
+                <Route path="/:dept/report" element={<DepartmentWrapper Component={SectionReport} currentUser={currentUser} />} />
+                <Route path="/:dept/report/efficiency" element={<DepartmentWrapper Component={EfficiencyReport} currentUser={currentUser} />} />
+                <Route path="/:dept/report/daily-target" element={<DepartmentWrapper Component={DailyLineTargetReport} currentUser={currentUser} />} />
+                <Route path="/:dept/report/manpower" element={<DepartmentWrapper Component={SectionReportManpower} currentUser={currentUser} />} />
+                <Route path="/:dept/report/quality" element={<DepartmentWrapper Component={SectionReportQuality} currentUser={currentUser} />} />
+                <Route path="/:dept/report/wip" element={<DepartmentWrapper Component={SectionReportWIP} currentUser={currentUser} />} />
+                <Route path="/:dept/input/wip" element={<DepartmentWrapper Component={WIPEntry} currentUser={currentUser} />} />
+                <Route path="/:dept/input/defects" element={<DepartmentWrapper Component={DefectInput} currentUser={currentUser} />} />
+                <Route path="/:dept/input/manpower" element={<DepartmentWrapper Component={ManpowerSheet} currentUser={currentUser} />} />
+                <Route path="/:dept/input/manpower/:process" element={<DepartmentWrapper Component={ManpowerSheet} currentUser={currentUser} />} />
+                <Route path="/:dept/input/machines" element={<DepartmentWrapper Component={MachineSheet} currentUser={currentUser} />} />
+                <Route path="/:dept/input/machines/:process" element={<DepartmentWrapper Component={MachineSheet} currentUser={currentUser} />} />
+                <Route path="/:dept/input/npt" element={<DepartmentWrapper Component={NPTInput} currentUser={currentUser} />} />
+                <Route path="/:dept/input/skills" element={<DepartmentWrapper Component={SkillMatrix} currentUser={currentUser} />} />
+                <Route path="/:dept/audit/5s" element={<DepartmentWrapper Component={Audit5S} currentUser={currentUser} />} />
+                <Route path="/:dept/audit/5s/:process" element={<DepartmentWrapper Component={Audit5S} currentUser={currentUser} />} />
+                <Route path="/:dept/ie-activity" element={<DepartmentWrapper Component={IEActivity} currentUser={currentUser} />} />
+                <Route path="/ot-analysis/:tab" element={<OTAnalysis />} />
+                <Route path="/:dept/study/production" element={<DepartmentWrapper Component={ProductionStudy} currentUser={currentUser} />} />
+                <Route path="/:dept/ie/qco-hub" element={<DepartmentWrapper Component={QCOHub} currentUser={currentUser} />} />
+                <Route path="/:dept/ie/layout-master" element={<DepartmentWrapper Component={LayoutMaster} currentUser={currentUser} isTemplateMode={false} />} />
+                <Route path="/:dept/ie/layout-bank" element={<DepartmentWrapper Component={LayoutBank} currentUser={currentUser} />} />
+                <Route path="/admin/ie/layout-registry/:dept" element={<DepartmentWrapper Component={LayoutMaster} currentUser={currentUser} isTemplateMode={true} />} />
+                <Route path="/:dept/ie/process-registry" element={<DepartmentWrapper Component={ProcessRegistry} currentUser={currentUser} />} />
+                <Route path="/:dept/machine-analysis" element={<DepartmentWrapper Component={MachineAnalysis} currentUser={currentUser} />} />
+                <Route path="/:dept/machine-analysis/:tab" element={<DepartmentWrapper Component={MachineAnalysis} currentUser={currentUser} />} />
+                <Route path="/:dept/manpower-analysis" element={<DepartmentWrapper Component={ManpowerAnalysis} currentUser={currentUser} />} />
+                <Route path="/:dept/manpower-analysis/:tab" element={<DepartmentWrapper Component={ManpowerAnalysis} currentUser={currentUser} />} />
+                <Route path="/factory/costing/fabric-consumption" element={<FabricConsumption />} />
+                <Route path="/factory/costing/sewing-thread-consumption" element={<SewingConsumption />} />
+                <Route path="/factory/costing/trims-consumption" element={<TrimsConsumption />} />
+                <Route path="/factory/costing/dashboard" element={<CostingDashboard />} />
+                <Route path="/factory/costing/sewing-costing" element={<DepartmentWrapper Component={Costing} currentUser={currentUser} />} />
+                <Route path="/factory/costing/wash-costing" element={<WashCosting />} />
+                <Route path="/factory/costing/wash-costing/history" element={<WashCostingHistory />} />
+                <Route path="/size-set-pilot/*" element={<SizeSetPilot />} />
+                <Route path="/factory/costing/:dept/:sub" element={<DepartmentWrapper Component={Costing} currentUser={currentUser} />} />
+                <Route path="/:dept/config/targets" element={<DepartmentWrapper Component={TargetSheet} currentUser={currentUser} role={currentUser.role} />} />
+                <Route path="/config/planning" element={<ProductionPlanningView currentUser={currentUser} />} />
+                <Route path="/planning/:tabId" element={<DepartmentWrapper Component={PlanningHub} currentUser={currentUser} />} />
+                <Route path="/planning" element={<Navigate to="/planning/dashboard" replace />} />
+                <Route path="/admin/analytics" element={currentUser.role === 'ADMIN' ? <FactoryAnalytics /> : <Navigate to="/" />} />
+                <Route path="/admin/management" element={currentUser.role === 'ADMIN' ? <AdminManagement /> : <Navigate to="/" />} />
+                <Route path="/admin/user-management" element={currentUser.role === 'ADMIN' ? <AdminUserManagement /> : <Navigate to="/" />} />
+                <Route path="/enterprise/notice-board" element={<NoticeBoard />} />
                 <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+                </Routes>
+              </div>
             </main>
           </div>
-          <Toaster position="top-right" richColors />
         </div>
-      </Router>
+      </HashRouter>
     </GlobalContext.Provider>
   );
-}
+};
+
+const DepartmentWrapper: React.FC<any> = ({ Component, currentUser, ...extraProps }) => {
+  const { dept, process, sub } = useParams();
+  let formattedDept = dept ? (dept.charAt(0).toUpperCase() + dept.slice(1)) : 'Sewing';
+  
+  if (dept === 'print-embroidery') formattedDept = 'Print & Embroidery';
+  
+  return <Component currentUser={currentUser} department={formattedDept as any} processType={process} subType={sub} {...extraProps} />;
+};
+
+export default App;
