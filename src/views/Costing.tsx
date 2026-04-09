@@ -9,7 +9,7 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, 
   ResponsiveContainer, AreaChart, Area 
 } from 'recharts';
-import { exportToExcel } from '@/src/lib/export';
+import { exportToExcel } from '@/lib/export';
 import SewingCostingDashboard from '../components/SewingCostingDashboard';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';

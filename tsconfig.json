@@ -19,7 +19,7 @@
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["src/*"]
     }
   },
   "include": ["./**/*.ts", "./**/*.tsx", "server.ts"],

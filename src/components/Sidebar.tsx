@@ -8,6 +8,7 @@ import {
 import { AppUser, UserRole, INITIAL_PERMISSIONS } from '../types';
 import { useGlobal } from '../App';
 import Logo from './Logo';
+import { COSTING_MENU } from '../constants/costing';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -138,15 +139,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, user, onClose }) => {
           {isOpen && <p className="px-4 text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2">Operations</p>}
           
           <DeptSection dept="Costing" icon={Banknote} color="bg-blue-600" to="/costing/hub" isOpen={isOpen} isExpanded={openDepts['Costing']} toggleDept={toggleDept} theme={theme}>
-             <NavItem to="/factory/costing/dashboard" icon={LayoutDashboard} label="Costing Dashboard" isOpen={isOpen} location={location} theme={theme} />
-             <NavItem to="/factory/costing/sewing-costing" icon={Shirt} label="Sewing Costing" isOpen={isOpen} location={location} theme={theme} />
-             <div className="pl-4">
-                <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1">Consumption</p>
-                <NavItem to="/factory/costing/fabric-consumption" icon={Layers} label="Fabric Consumption" isOpen={isOpen} location={location} theme={theme} />
-                <NavItem to="/factory/costing/sewing-thread-consumption" icon={Layers} label="Sewing Thread Consumption" isOpen={isOpen} location={location} theme={theme} />
-                <NavItem to="/factory/costing/trims-consumption" icon={Layers} label="Trims & Accessories" isOpen={isOpen} location={location} theme={theme} />
-             </div>
-             <NavItem to="/factory/costing/wash-costing" icon={Droplets} label="Wash Costing" isOpen={isOpen} location={location} theme={theme} />
+             {COSTING_MENU.map(item => {
+                if (item.items) {
+                    return (
+                        <div key={item.label} className="pl-4">
+                            <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mb-1">{item.label}</p>
+                            {item.items.map(subItem => (
+                                <NavItem key={subItem.to} to={subItem.to} icon={Layers} label={subItem.label} isOpen={isOpen} location={location} theme={theme} />
+                            ))}
+                        </div>
+                    )
+                }
+                return <NavItem key={item.to} to={item.to} icon={item.label.includes('Dashboard') ? LayoutDashboard : Shirt} label={item.label} isOpen={isOpen} location={location} theme={theme} />
+             })}
           </DeptSection>
 
           <DeptSection dept="Store" icon={StoreIcon} color="bg-amber-500" to="/store/hub" isOpen={isOpen} isExpanded={openDepts['Store']} toggleDept={toggleDept} theme={theme}>

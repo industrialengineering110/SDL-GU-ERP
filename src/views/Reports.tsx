@@ -5,8 +5,8 @@ import {
   ComposedChart, Line, Area, Cell, Scatter
 } from 'recharts';
 import { Search, Filter, FileText, Download, Calendar, ArrowUpRight, ChevronRight, LayoutGrid, List } from 'lucide-react';
-import { UserRole } from './types';
-import { mockDb } from './services/mockDb';
+import { UserRole } from '@/types';
+import { mockDb } from '@/services/mockDb';
 
 interface ReportsProps {
   role: UserRole;

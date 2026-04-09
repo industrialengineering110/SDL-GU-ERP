@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { mockDb } from '../services/mockDb';
 import { DepartmentType, ProcessConfig, AppUser, SystemConfig } from '../types';
-import SearchableSelect from '../components/SearchableSelect';
+import SearchableSelect from '@/components/SearchableSelect';
 
 interface ProcessRegistryProps {
   department: DepartmentType;

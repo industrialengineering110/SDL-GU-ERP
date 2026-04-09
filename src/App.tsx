@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
 import { HashRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
-import { AppUser as User, UserRole } from './types';
+import { AppUser as User, UserRole } from '@/types';
 import { ENV } from './config/env';
 import { apiService } from './services/apiService';
 import { syncEngine } from './services/syncEngine';
@@ -54,6 +54,7 @@ import WashingProductionReport from './views/WashingProductionReport';
 import StoreInventory from './views/StoreInventory';
 import NoticeBoard from './views/NoticeBoard';
 import SizeSetPilot from './views/SizeSetPilot';
+import CostingHubLayout from './layouts/CostingHubLayout';
 import { 
   LiveProduction, 
   CoordinationWall, 
@@ -265,13 +266,14 @@ const App: React.FC = () => {
                 <Route path="/:dept/machine-analysis/:tab" element={<DepartmentWrapper Component={MachineAnalysis} currentUser={currentUser} />} />
                 <Route path="/:dept/manpower-analysis" element={<DepartmentWrapper Component={ManpowerAnalysis} currentUser={currentUser} />} />
                 <Route path="/:dept/manpower-analysis/:tab" element={<DepartmentWrapper Component={ManpowerAnalysis} currentUser={currentUser} />} />
-                <Route path="/factory/costing/fabric-consumption" element={<FabricConsumption />} />
-                <Route path="/factory/costing/sewing-thread-consumption" element={<SewingConsumption />} />
-                <Route path="/factory/costing/trims-consumption" element={<TrimsConsumption />} />
-                <Route path="/factory/costing/dashboard" element={<CostingDashboard />} />
-                <Route path="/factory/costing/sewing-costing" element={<DepartmentWrapper Component={Costing} currentUser={currentUser} />} />
-                <Route path="/factory/costing/wash-costing" element={<WashCosting />} />
-                <Route path="/factory/costing/wash-costing/history" element={<WashCostingHistory />} />
+                <Route path="/factory/costing" element={<CostingHubLayout />}>
+                  <Route path="dashboard" element={<CostingDashboard />} />
+                  <Route path="sewing-costing" element={<DepartmentWrapper Component={Costing} currentUser={currentUser} />} />
+                  <Route path="wash-costing" element={<WashCosting />} />
+                  <Route path="fabric-consumption" element={<FabricConsumption />} />
+                  <Route path="sewing-thread-consumption" element={<SewingConsumption />} />
+                  <Route path="trims-consumption" element={<TrimsConsumption />} />
+                </Route>
                 <Route path="/size-set-pilot/*" element={<SizeSetPilot />} />
                 <Route path="/factory/costing/:dept/:sub" element={<DepartmentWrapper Component={Costing} currentUser={currentUser} />} />
                 <Route path="/:dept/config/targets" element={<DepartmentWrapper Component={TargetSheet} currentUser={currentUser} role={currentUser.role} />} />
