@@ -29,6 +29,7 @@ import {
 } from '../types';
 import Logo from '../components/Logo';
 import AdminRegistration from './AdminRegistration';
+import { mergeSystemConfig } from '../utils/systemConfig';
 
 const PERMISSION_STRUCTURE = [
   { id: 'costing', label: 'Costing', icon: Droplets, key: 'costing', children: [
@@ -566,16 +567,10 @@ const AdminManagement: React.FC = () => {
       const sys = await apiService.getRemoteConfig();
       const userList = await apiService.getUsers();
       
-      // Fallback to mock if API returns empty/error (optional, but safer for transition)
-      if (Object.keys(sys).length > 0) setConfig(sys);
-      else setConfig(mockDb.getSystemConfig());
-      
-      if (userList && userList.length > 0) setUsers(userList);
-      else setUsers(mockDb.getUsers());
+      setConfig(mergeSystemConfig(sys));
+      setUsers(userList);
     } catch (err) {
-      console.error("Failed to fetch data from API, using mock fallback", err);
-      setConfig(mockDb.getSystemConfig());
-      setUsers(mockDb.getUsers());
+      console.error("Failed to fetch data from API", err);
     }
   }, []);
 
@@ -584,14 +579,15 @@ const AdminManagement: React.FC = () => {
   }, [refreshAll]);
 
   const handleConfigUpdate = useCallback(async (key: keyof SystemConfig, value: any) => {
-    setConfig(prev => {
-      if (!prev) return prev;
-      const updated = { ...prev, [key]: value };
-      apiService.saveRemoteConfig(updated).catch(err => console.error("Failed to save config", err));
-      mockDb.saveSystemConfig(updated);
-      return updated;
-    });
-  }, []);
+    if (!config) return;
+    const updated = mergeSystemConfig({ ...config, [key]: value });
+    setConfig(updated);
+    try {
+        await apiService.saveRemoteConfig(updated);
+    } catch (err) {
+        console.error("Failed to save config", err);
+    }
+  }, [config]);
 
   const handleRegisterLine = () => {
     if (!lineForm.lineId || !lineForm.blockId || !config) {
@@ -609,12 +605,12 @@ const AdminManagement: React.FC = () => {
        remarks: lineForm.remarks || ''
     } as LineMapping;
 
-    let updatedMappings = [...config.lineMappings];
+    let updatedMappings = [...(config.lineMappings || [])];
     
     if (editingLineIndex !== null) {
-      const deptLines = config.lineMappings.filter(m => m.sectionId === selectedSection);
+      const deptLines = (config.lineMappings || []).filter(m => m.sectionId === selectedSection);
       const targetItem = deptLines[editingLineIndex];
-      const globalIdx = config.lineMappings.indexOf(targetItem);
+      const globalIdx = (config.lineMappings || []).indexOf(targetItem);
       if (globalIdx >= 0) {
           updatedMappings[globalIdx] = newLine;
       }
@@ -639,14 +635,14 @@ const AdminManagement: React.FC = () => {
 
   const moveLine = (indexInDept: number, direction: 'up' | 'down') => {
     if (!config) return;
-    const deptLines = config.lineMappings.filter(m => m.sectionId === selectedSection);
+    const deptLines = (config.lineMappings || []).filter(m => m.sectionId === selectedSection);
     const targetIdxInDept = direction === 'up' ? indexInDept - 1 : indexInDept + 1;
     if (targetIdxInDept >= 0 && targetIdxInDept < deptLines.length) {
       const item1 = deptLines[indexInDept];
       const item2 = deptLines[targetIdxInDept];
-      const globalIdx1 = config.lineMappings.indexOf(item1);
-      const globalIdx2 = config.lineMappings.indexOf(item2);
-      const newGlobalMappings = [...config.lineMappings];
+      const globalIdx1 = (config.lineMappings || []).indexOf(item1);
+      const globalIdx2 = (config.lineMappings || []).indexOf(item2);
+      const newGlobalMappings = [...(config.lineMappings || [])];
       [newGlobalMappings[globalIdx1], newGlobalMappings[globalIdx2]] = [newGlobalMappings[globalIdx2], newGlobalMappings[globalIdx1]];
       handleConfigUpdate('lineMappings', newGlobalMappings);
     }
@@ -654,32 +650,36 @@ const AdminManagement: React.FC = () => {
 
   const handleHRUpdate = (type: keyof HRReasons, value: string[]) => {
     if (!config) return;
-    const currentHR = config.hrReasons[selectedSection] || { absent: [], late: [], turnover: [], leave: [], halfDay: [] };
+    const currentHR = config.hrReasons?.[selectedSection] || { absent: [], late: [], turnover: [], leave: [], halfDay: [] };
     const updatedHR = { ...currentHR, [type]: value };
-    handleConfigUpdate('hrReasons', { ...config.hrReasons, [selectedSection]: updatedHR });
+    handleConfigUpdate('hrReasons', { ...(config.hrReasons || {}), [selectedSection]: updatedHR });
   };
 
   const handleQualityUpdate = (type: keyof QualityIssueConfig, value: string[]) => {
     if (!config) return;
-    const currentIssues = config.qualityIssues[selectedSection] || { defects: [], rejects: [] };
+    const currentIssues = config.qualityIssues?.[selectedSection] || { defects: [], rejects: [] };
     const updatedIssues = { ...currentIssues, [type]: value };
-    handleConfigUpdate('qualityIssues', { ...config.qualityIssues, [selectedSection]: updatedIssues });
+    handleConfigUpdate('qualityIssues', { ...(config.qualityIssues || {}), [selectedSection]: updatedIssues });
   };
 
-  const handleUpdateUserInTable = (userId: string, field: string, value: any) => {
+  const handleUpdateUserInTable = async (userId: string, field: string, value: any) => {
     const user = users.find(u => u.id === userId);
     if (!user) return;
     const updatedUser = { ...user, [field]: value };
-    mockDb.registerUser(updatedUser);
-    setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+    try {
+        await apiService.updateUserProfile(userId, updatedUser);
+        setUsers(prev => prev.map(u => u.id === userId ? updatedUser : u));
+    } catch (err) {
+        console.error("Failed to update user", err);
+    }
   };
 
   if (!config) return null;
 
-  const currentHR = config.hrReasons[selectedSection] || { absent: [], late: [], turnover: [], leave: [], halfDay: [] };
-  const currentQuality = config.qualityIssues[selectedSection] || { defects: [], rejects: [] };
-  const currentDeptLines = config.lineMappings.filter(m => m.sectionId === selectedSection);
-  const current5S = config.fiveSQuestions[selectedSection] || [];
+  const currentHR = config.hrReasons?.[selectedSection] || { absent: [], late: [], turnover: [], leave: [], halfDay: [] };
+  const currentQuality = config.qualityIssues?.[selectedSection] || { defects: [], rejects: [] };
+  const currentDeptLines = (config.lineMappings || []).filter(m => m.sectionId === selectedSection);
+  const current5S = config.fiveSQuestions?.[selectedSection] || [];
 
   return (
     <div className="space-y-8 pb-20 max-w-[1900px] mx-auto animate-in fade-in duration-700 px-4">

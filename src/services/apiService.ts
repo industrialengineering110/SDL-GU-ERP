@@ -1,3 +1,4 @@
+import { mergeSystemConfig } from '../utils/systemConfig';
 
 const BASE_URL = '/api';
 
@@ -14,6 +15,8 @@ class ApiService {
       ...options.headers,
     };
 
+    console.log('API Request:', endpoint, 'Headers:', headers);
+
     const response = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
     if (response.status === 401) {
       localStorage.clear();
@@ -29,10 +32,14 @@ class ApiService {
   }
 
   async login(identifier: string, password: string) {
-    return this.request('/auth/login', {
+    const response = await fetch(`${BASE_URL}/auth/login`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ identifier, password }),
     });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Login failed');
+    return data;
   }
 
   async getCurrentUser() {
@@ -79,11 +86,13 @@ class ApiService {
   }
 
   async getRemoteConfig() {
-    return this.request('/config');
+    const config = await this.request('/config');
+    return mergeSystemConfig(config);
   }
 
   async saveRemoteConfig(data: any) {
-    return this.request('/config', { method: 'POST', body: JSON.stringify({ data }) });
+    const mergedConfig = mergeSystemConfig(data);
+    return this.request('/config', { method: 'POST', body: JSON.stringify({ data: mergedConfig }) });
   }
 
   async checkHealth(): Promise<boolean> {
@@ -179,6 +188,22 @@ class ApiService {
 
   async deleteThreadConsumption(id: string) {
     return this.request(`/thread-consumption/${id}`, { method: 'DELETE' });
+  }
+
+  // Notifications
+  async getNotifications() {
+    return this.request('/notifications');
+  }
+
+  async addNotification(data: any) {
+    return this.request('/notifications', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteNotification(id: string) {
+    return this.request(`/notifications/${id}`, { method: 'DELETE' });
   }
 }
 

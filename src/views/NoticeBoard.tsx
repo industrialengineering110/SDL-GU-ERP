@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Bell, Plus, Trash2, Send, Info, Calendar, User, Image as ImageIcon, X as CloseIcon } from 'lucide-react';
-import { mockDb } from '../services/mockDb';
+import { apiService } from '../services/apiService';
 import { AppNotification } from '../types';
 import { useGlobal } from '../App';
 
@@ -29,13 +29,16 @@ const NoticeBoard: React.FC = () => {
     }
   };
 
-  const fetchNotices = () => {
-    const all = mockDb.getNotifications();
-    // For notice board, we show all notifications that were sent to 'ALL'
-    setNotices(all.filter(n => n.toDepartment === 'ALL').sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+  const fetchNotices = async () => {
+    try {
+      const all = await apiService.getNotifications();
+      setNotices(all.filter((n: AppNotification) => n.toDepartment === 'ALL').sort((a: AppNotification, b: AppNotification) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
+    } catch (err) {
+      console.error("Failed to fetch notices", err);
+    }
   };
 
-  const handleAddNotice = () => {
+  const handleAddNotice = async () => {
     if (!newNotice.message.trim()) return;
 
     const notice: AppNotification = {
@@ -49,17 +52,25 @@ const NoticeBoard: React.FC = () => {
       image: newNotice.image || undefined
     };
 
-    mockDb.addNotification(notice);
-    setShowAddModal(false);
-    setNewNotice({ message: '', type: 'INFO', image: '' });
-    fetchNotices();
-    alert('Notice published and broadcasted to all users!');
+    try {
+        await apiService.addNotification(notice);
+        setShowAddModal(false);
+        setNewNotice({ message: '', type: 'INFO', image: '' });
+        fetchNotices();
+        alert('Notice published and broadcasted to all users!');
+    } catch (err) {
+        console.error("Failed to add notice", err);
+    }
   };
 
-  const deleteNotice = (id: string) => {
+  const deleteNotice = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this notice?')) {
-      mockDb.deleteNotification(id);
-      fetchNotices();
+      try {
+        await apiService.deleteNotification(id);
+        fetchNotices();
+      } catch (err) {
+        console.error("Failed to delete notice", err);
+      }
     }
   };
 

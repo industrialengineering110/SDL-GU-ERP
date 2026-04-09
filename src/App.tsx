@@ -162,8 +162,8 @@ const App: React.FC = () => {
 
   const handleLoginSuccess = useCallback((user: any) => {
     localStorage.setItem('protrack_session', JSON.stringify(user));
-    if (user.access_token) {
-      localStorage.setItem('protrack_token', user.access_token);
+    if (user.token) {
+      localStorage.setItem('protrack_token', user.token);
       localStorage.setItem('protrack_session', JSON.stringify(user.user));
       setCurrentUser(user.user);
     } else {

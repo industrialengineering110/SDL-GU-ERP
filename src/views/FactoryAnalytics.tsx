@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3, TrendingUp, Users, Hammer, 
@@ -13,7 +13,7 @@ import {
   Flame, ListTodo, CircleCheck, MousePointer2, Palette, Hash, Shirt, Book, Award, UserMinus, FileStack,
   Star, FlaskConical
 } from 'lucide-react';
-import { mockDb } from '../services/mockDb';
+import { apiService } from '../services/apiService';
 import { 
   SystemConfig, ManpowerBudgetEntry, ManpowerStatusEntry, DepartmentType
 } from '../types';
@@ -90,29 +90,39 @@ const FactoryAnalytics: React.FC = () => {
   const [ieSub, setIeSub] = useState<'MENU' | 'PROCESS' | 'LAYOUT' | 'CURVE' | 'BANK' | 'THREAD'>('MENU');
   const [preProdSub, setPreProdSub] = useState<'MENU' | 'FABRIC' | 'SAMPLE' | 'SIZE_SET'>('MENU');
   
-  const [config, setConfig] = useState(mockDb.getSystemConfig());
+  const [config, setConfig] = useState<SystemConfig | null>(null);
   const [selectedDept, setSelectedDept] = useState('Sewing');
   
   const [machineTab, setMachineTab] = useState<'STATUS' | 'BUDGET'>('STATUS');
 
   const [message, setMessage] = useState('');
 
-  const handleConfigUpdate = useCallback((key: keyof SystemConfig, value: any) => {
-    setConfig(prev => {
-      const updated = { ...prev, [key]: value };
-      mockDb.saveSystemConfig(updated);
-      return updated;
-    });
+  useEffect(() => {
+    apiService.getRemoteConfig().then(setConfig).catch(console.error);
   }, []);
 
+  const handleConfigUpdate = useCallback(async (key: keyof SystemConfig, value: any) => {
+    if (!config) return;
+    const updated = { ...config, [key]: value };
+    setConfig(updated);
+    try {
+        await apiService.saveRemoteConfig(updated);
+    } catch (err) {
+        console.error("Failed to save config", err);
+    }
+  }, [config]);
+
   const machineAnalysis = useMemo(() => {
+    if (!config) return { total: 0, operational: 0, running: 0, repair: 0, disposal: 0, idle: 0 };
     const assets = config.machineAssets || [];
     const operational = assets.filter(m => m.status === 'Operational').length;
     const running = assets.filter(m => m.lineId).length;
     const repair = assets.filter(m => m.status === 'Under repair').length;
     const disposal = assets.filter(m => m.status === 'Disposal').length;
     return { total: assets.length, operational, running, repair, disposal, idle: assets.length - running };
-  }, [config.machineAssets]);
+  }, [config]);
+
+  if (!config) return <div className="p-10 text-center">Loading...</div>;
 
   return (
     <div className="space-y-4 pb-20 max-w-[1800px] mx-auto animate-in fade-in duration-700 px-4">

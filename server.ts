@@ -7,6 +7,7 @@ import jwt from 'jsonwebtoken';
 import { query, initDb } from './src/db';
 import dotenv from 'dotenv';
 import { fileURLToPath } from 'url';
+import { mergeSystemConfig } from './src/utils/systemConfig';
 
 dotenv.config();
 
@@ -121,14 +122,17 @@ async function startServer() {
   // Auth: Get Current User
   app.get('/api/auth/me', async (req, res) => {
     const authHeader = req.headers.authorization;
+    console.log('DEBUG: /api/auth/me called. Auth Header:', authHeader);
     if (!authHeader) return res.status(401).json({ error: 'No token' });
     const token = authHeader.split(' ')[1];
     try {
       const decoded: any = jwt.verify(token, JWT_SECRET);
+      console.log('DEBUG: Token decoded:', decoded);
       const result = await query('SELECT id, name, email, mobile_number, employee_id, department, designation, section, area, lines, role, status FROM users WHERE id = $1', [decoded.id]);
       if (result.rows.length === 0) return res.status(404).json({ error: 'User not found' });
       res.json(result.rows[0]);
     } catch (err) {
+      console.log('DEBUG: Token verification failed:', err);
       res.status(401).json({ error: 'Invalid token' });
     }
   });
@@ -186,7 +190,7 @@ async function startServer() {
   app.get('/api/config', async (req, res) => {
     try {
       const result = await query('SELECT data FROM app_config WHERE id = $1', ['main_config']);
-      res.json(result.rows[0]?.data || {});
+      res.json(mergeSystemConfig(result.rows[0]?.data || {}));
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -195,12 +199,13 @@ async function startServer() {
   // Config: Update Config
   app.post('/api/config', async (req, res) => {
     const { data } = req.body;
+    const mergedConfig = mergeSystemConfig(data || {});
     try {
       await query(
         'INSERT INTO app_config (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP',
-        ['main_config', data]
+        ['main_config', mergedConfig]
       );
-      res.json({ success: true });
+      res.json({ success: true, data: mergedConfig });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }
@@ -465,6 +470,40 @@ async function startServer() {
          ON CONFLICT (id) DO UPDATE SET data = $2, updated_at = CURRENT_TIMESTAMP`,
         [record.id, record]
       );
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Notifications
+  app.get('/api/notifications', async (req, res) => {
+    try {
+      const result = await query('SELECT * FROM notifications ORDER BY timestamp DESC');
+      res.json(result.rows);
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/notifications', async (req, res) => {
+    const { id, type, message, timestamp, from, toDepartment, readBy, image } = req.body;
+    try {
+      await query(
+        `INSERT INTO notifications (id, type, message, timestamp, "from", to_department, read_by, image)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+        [id, type, message, timestamp, from, toDepartment, JSON.stringify(readBy), image]
+      );
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/notifications/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+      await query('DELETE FROM notifications WHERE id = $1', [id]);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ error: err.message });

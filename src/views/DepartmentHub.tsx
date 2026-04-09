@@ -9,6 +9,7 @@ import {
   FileStack, Search, Rocket, Scissors, Shirt
 } from 'lucide-react';
 import HubDashboard from '../components/HubDashboard';
+import { COSTING_ROUTES } from '../constants/costing';
 
 const HubCard = ({ title, sub, icon: Icon, color, onClick }: any) => (
   <div 
@@ -44,9 +45,9 @@ const DepartmentHub: React.FC = () => {
     
     if (d === 'costing') {
       return [
-        { title: 'Sewing Costing', sub: 'Financial Analysis for Sewing', icon: Banknote, color: 'bg-blue-600', path: `/factory/costing/sewing/costing` },
-        { title: 'Consumption', sub: 'Material Usage Analysis', icon: Layers, color: 'bg-indigo-600', path: `/factory/costing/sewing/consumption` },
-        { title: 'Washing Costing', sub: 'Washing Department Finance', icon: Droplets, color: 'bg-cyan-500', path: `/factory/costing/washing` },
+        { title: 'Sewing Costing', sub: 'Financial Analysis for Sewing', icon: Banknote, color: 'bg-blue-600', path: COSTING_ROUTES.SEWING },
+        { title: 'Consumption', sub: 'Material Usage Analysis', icon: Layers, color: 'bg-indigo-600', path: COSTING_ROUTES.CONSUMPTION.SEWING },
+        { title: 'Washing Costing', sub: 'Washing Department Finance', icon: Droplets, color: 'bg-cyan-500', path: COSTING_ROUTES.WASH },
       ];
     }
 

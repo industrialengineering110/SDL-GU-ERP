@@ -14,13 +14,14 @@ import SewingCostingDashboard from '../components/SewingCostingDashboard';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '../services/apiService';
 import { SewingCosting, Operation, DailyTarget, LayoutTemplate } from '../types';
+import { getDefaultSewingCosting, mergeSystemConfig, normalizeSewingCosting } from '../utils/systemConfig';
 
 const Costing: React.FC<{ department?: string; subType?: string }> = ({ department, subType }) => {
   const navigate = useNavigate();
   
   const [view, setView] = useState<'ENTRY' | 'DATABASE'>('ENTRY');
   const [step, setStep] = useState(1);
-  const [config, setConfig] = useState<any>({ buyers: [], productCategories: [], lineMappings: [] });
+  const [config, setConfig] = useState<any>(() => mergeSystemConfig(undefined));
   const [costingList, setCostingList] = useState<SewingCosting[]>([]);
   const [layoutTemplates, setLayoutTemplates] = useState<LayoutTemplate[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,36 +39,16 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
 
   // Form State
   const [formData, setFormData] = useState<Partial<SewingCosting>>(() => {
+    const defaultDraft = getDefaultSewingCosting();
     const saved = localStorage.getItem('sewing_costing_draft');
     if (saved) {
       try {
-        return JSON.parse(saved);
+        return normalizeSewingCosting(JSON.parse(saved));
       } catch (e) {
         console.error("Failed to parse saved draft:", e);
       }
     }
-    return {
-      id: '',
-      buyer: '',
-      styleNumber: '',
-      styleCode: '',
-      productCategory: '',
-      size: '',
-      fabrication: '',
-      numStyling: 1,
-      numStyle: 1,
-      numColor: 1,
-      marketingOrderQty: 0,
-      lineConsideration: 1,
-      operations: [],
-      dailyTargets: [
-        { day: 1, target: 0 },
-        { day: 2, target: 0 },
-        { day: 3, target: 0 },
-        { day: 4, target: 0 },
-      ],
-      topTargetDay: 4,
-    };
+    return defaultDraft;
   });
 
   // Persist draft to localStorage
@@ -83,8 +64,8 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
           apiService.getRemoteConfig(),
           apiService.getSewingCosting()
         ]);
-        setConfig(remoteConfig);
-        setCostingList(remoteCostings);
+        setConfig(mergeSystemConfig(remoteConfig));
+        setCostingList((remoteCostings || []).map(normalizeSewingCosting));
       } catch (error) {
         console.error("Failed to load costing data:", error);
       } finally {
@@ -367,10 +348,11 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
   }, [formData.dailyTargets, formData.marketingOrderQty, formData.operations, formData.manualSMV, formData.othersSMV, formData.afterWashSMV, formData.lineConsideration, config.lineMappings]);
 
   const filteredDatabase = useMemo(() => {
+    const normalizedSearch = searchTerm.toLowerCase();
     return costingList.filter(c => 
-      c.styleNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.buyer.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      c.styleCode.toLowerCase().includes(searchTerm.toLowerCase())
+      (c.styleNumber || '').toLowerCase().includes(normalizedSearch) ||
+      (c.buyer || '').toLowerCase().includes(normalizedSearch) ||
+      (c.styleCode || '').toLowerCase().includes(normalizedSearch)
     );
   }, [costingList, searchTerm]);
 
@@ -455,7 +437,7 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
                       onChange={e => setFormData({ ...formData, buyer: e.target.value })}
                     >
                       <option value="">Select Buyer</option>
-                      {config.buyers.map(b => <option key={b} value={b}>{b}</option>)}
+                      {(config.buyers || []).map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -486,7 +468,7 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
                       onChange={e => setFormData({ ...formData, productCategory: e.target.value })}
                     >
                       <option value="">Select Category</option>
-                      {config.productCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                      {(config.productCategories || []).map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </div>
                   <div className="space-y-2">
@@ -1205,7 +1187,7 @@ const Costing: React.FC<{ department?: string; subType?: string }> = ({ departme
                             )}
                             <button 
                               onClick={() => {
-                                setFormData(costing);
+                                setFormData(normalizeSewingCosting(costing));
                                 setStep(1);
                                 setView('ENTRY');
                               }}

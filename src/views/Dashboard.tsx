@@ -103,12 +103,14 @@ const MonthlyProductionDashboard: React.FC<{ selectedDate: string, selectedMonth
   const summary = useMemo(() => {
     if (!dataService) return {};
     const depts: DepartmentType[] = ['Cutting', 'Sewing', 'Finishing', 'Washing'];
-    return depts.reduce((acc, dept) => {
+    const result = depts.reduce((acc, dept) => {
       const daily = dataService.getDepartmentSummary(dept, { date: selectedDate });
       const monthly = dataService.getDepartmentSummary(dept, { month: selectedMonth });
       acc[dept] = { daily, monthly };
       return acc;
     }, {} as any);
+    console.log('DEBUG: Summary object:', result);
+    return result;
   }, [selectedDate, selectedMonth, dataService]);
 
   const SummaryRow = useCallback(({ label, values, isHeader = false }: any) => (
@@ -596,10 +598,12 @@ const Dashboard: React.FC<DashboardProps> = ({ role }) => {
       </div>
 
       {/* REFINED MONTHLY PRODUCTION DASHBOARD */}
-      <MonthlyProductionDashboard selectedDate={selectedDate} selectedMonth={selectedMonth} theme={theme} dataService={dataService} />
+      {!loading && (
+        <MonthlyProductionDashboard selectedDate={selectedDate} selectedMonth={selectedMonth} theme={theme} dataService={dataService} />
+      )}
       
       {/* Analytics Charts */}
-      <AnalyticsCharts dataService={dataService} />
+      {!loading && <AnalyticsCharts dataService={dataService} />}
 
       {/* Departmental Sections */}
       <div className="space-y-16">

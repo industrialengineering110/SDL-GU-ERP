@@ -414,7 +414,7 @@ const TargetSheet: React.FC<TargetSheetProps> = ({ role, currentUser, department
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 font-bold text-slate-700">
-              {Object.entries(groupedLines).map(([category, lines]) => (
+              {Object.entries(groupedLines as Record<string, DailyTarget[]>).map(([category, lines]) => (
                 <React.Fragment key={category}>
                   {lines.length > 0 && (
                     <tr className="bg-slate-50/80 h-8">

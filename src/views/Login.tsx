@@ -34,9 +34,9 @@ const Login: React.FC<LoginProps> = ({ onLogin, onGoToSignup }) => {
       } else {
         setError('Authentication Failed: Invalid ID or Password.');
       }
-    } catch (err) {
-      setError('An unexpected error occurred during authentication.');
-      console.error(err);
+    } catch (err: any) {
+      setError(err.message || 'An unexpected error occurred during authentication.');
+      console.error('Login error details:', err);
     }
   };
 
